@@ -1,0 +1,2 @@
+[console_scripts]
+mde = mde.cli:main

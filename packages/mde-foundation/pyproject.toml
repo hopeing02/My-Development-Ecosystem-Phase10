@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mde-foundation"
+version = "0.1.0"
+description = "Shared foundation package for MDE applications"
+requires-python = ">=3.11"
+
+[project.scripts]
+mde = "mde:main"
+
+[tool.setuptools]
+py-modules = ["mde"]
+
+[tool.setuptools.packages.find]
+where = [
+    "packages/mde-foundation/src",
+    "."
+]
+
+[tool.pytest.ini_options]
+pythonpath = [
+    ".",
+    "packages/mde-foundation/src"
+]

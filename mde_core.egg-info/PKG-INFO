@@ -1,0 +1,6 @@
+Metadata-Version: 2.4
+Name: mde-core
+Version: 0.10.0
+Summary: Core automation engine for My Development Ecosystem
+Requires-Python: >=3.11
+Requires-Dist: PyYAML>=6.0

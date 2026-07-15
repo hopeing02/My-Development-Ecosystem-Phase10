@@ -1,0 +1,6 @@
+id: agent-test-20260711-001
+message: "test(agent): verify mobile task processing"
+
+files:
+  - patch: agent-test-target.txt
+    target: agent-test-target.txt

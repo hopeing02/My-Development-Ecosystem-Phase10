@@ -1,0 +1,11 @@
+{
+  "updated_at": "2026-07-15T15:58:50.970872+00:00",
+  "counts": {
+    "pending": 0,
+    "processing": 0,
+    "completed": 0,
+    "failed": 0
+  },
+  "latest_completed": [],
+  "latest_failed": []
+}

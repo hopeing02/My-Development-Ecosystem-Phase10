@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mde-core"
+version = "0.10.0"
+description = "Core automation engine for My Development Ecosystem"
+requires-python = ">=3.11"
+dependencies = ["PyYAML>=6.0"]
+
+[project.scripts]
+mde = "mde.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["packages/mde-core/src", "."]
+include = ["mde*", "tools*"]
+
+[tool.pytest.ini_options]
+pythonpath = [".", "packages/mde-core/src"]
+testpaths = ["tests", "tools/tests", "packages/mde-core/tests"]

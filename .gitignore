@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.deps/
+.black-cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.mde/
+logs/
+*.bak_*
+
+# Node / Next.js
+node_modules/
+.next/
+dist/
+build/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local logs
+*.log

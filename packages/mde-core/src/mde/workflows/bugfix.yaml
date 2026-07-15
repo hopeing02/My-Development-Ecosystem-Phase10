@@ -1,0 +1,27 @@
+version: 1
+name: bugfix
+description: Bug diagnosis and repair workflow.
+steps:
+  - id: prepare
+    command: task.prepare
+  - id: analyze
+    command: bugfix.analyze
+    depends_on: [prepare]
+  - id: generate
+    command: ai.generate
+    depends_on: [analyze]
+  - id: apply
+    command: change.apply
+    depends_on: [generate]
+  - id: test
+    command: test.run
+    depends_on: [apply]
+  - id: save
+    command: git.save
+    depends_on: [test]
+  - id: push
+    command: git.push
+    depends_on: [save]
+  - id: complete
+    command: task.complete
+    depends_on: [push]

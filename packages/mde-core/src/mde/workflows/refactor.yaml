@@ -1,0 +1,30 @@
+version: 1
+name: refactor
+description: Safe code refactoring workflow.
+steps:
+  - id: prepare
+    command: task.prepare
+  - id: plan
+    command: refactor.plan
+    depends_on: [prepare]
+  - id: generate
+    command: ai.generate
+    depends_on: [plan]
+  - id: review
+    command: change.review
+    depends_on: [generate]
+  - id: apply
+    command: change.apply
+    depends_on: [review]
+  - id: test
+    command: test.run
+    depends_on: [apply]
+  - id: save
+    command: git.save
+    depends_on: [test]
+  - id: push
+    command: git.push
+    depends_on: [save]
+  - id: complete
+    command: task.complete
+    depends_on: [push]
