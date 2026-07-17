@@ -1,0 +1,24 @@
+version: 1
+task:
+  id: MOBILE-AI-YAML-TEST-20260717-V2
+  type: feature
+  title: Verify GitHub mobile YAML automatic push
+  description: Generate, apply, test, commit, and push a deterministic artifact from GitHub YAML.
+  workflow: feature
+  source: github-mobile-test
+  repository:
+    branch: feature/mobile-ai-yaml-test-20260717-v2
+    base_branch: test/mobile-yaml-trigger-20260717-v2
+  execution:
+    auto_apply: true
+    run_tests: true
+    auto_save: true
+    auto_push: true
+  inputs:
+    ai:
+      provider: mock
+      artifacts:
+        - path: generated/mobile-yaml-ai-test-v2.txt
+          content: Mobile YAML AI generation and automatic push verified on 2026-07-17.
+  acceptance:
+    - Generated file exists and is pushed automatically.
