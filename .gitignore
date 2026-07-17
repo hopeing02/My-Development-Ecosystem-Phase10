@@ -13,6 +13,7 @@ venv/
 htmlcov/
 .mde/
 logs/
+status/agent-heartbeat.json
 *.bak_*
 
 # Node / Next.js

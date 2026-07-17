@@ -71,7 +71,9 @@ def run_tests(context: WorkflowContext, step: WorkflowStep) -> dict[str, Any]:
         ("uv", "run", "ruff", "format", "."),
         ("uv", "run", "ruff", "check", "."),
     )
-    commands = quality_commands + (test_command,) if quality_enabled else (test_command,)
+    commands = (
+        quality_commands + (test_command,) if quality_enabled else (test_command,)
+    )
 
     log_dir = root / "logs" / "tests"
     log_dir.mkdir(parents=True, exist_ok=True)

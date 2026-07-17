@@ -28,7 +28,9 @@ def configure_logger() -> logging.Logger:
     logger.setLevel(logging.INFO)
     if not logger.handlers:
         handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
-        handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
+        )
         logger.addHandler(handler)
     return logger
 
@@ -43,7 +45,9 @@ def run_command(command: list[str]) -> CommandResult:
     )
 
 
-def run_required(command: list[str], logger: logging.Logger | None = None) -> CommandResult:
+def run_required(
+    command: list[str], logger: logging.Logger | None = None
+) -> CommandResult:
     result = run_command(command)
     command_text = " ".join(command)
     if result.returncode != 0:
@@ -111,7 +115,9 @@ def save(commit_message: str, push: bool) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Commit verified MDE changes.")
     parser.add_argument("-m", "--message", required=True, help="Git commit message.")
-    parser.add_argument("--no-push", action="store_true", help="Create commit without pushing.")
+    parser.add_argument(
+        "--no-push", action="store_true", help="Create commit without pushing."
+    )
     return parser
 
 

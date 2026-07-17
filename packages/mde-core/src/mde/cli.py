@@ -494,7 +494,7 @@ def run_ai_command(args: argparse.Namespace) -> int:
             if not base_url.startswith(("http://", "https://")):
                 raise AIConfigurationError("MDE_LOCAL_BASE_URL must be an HTTP(S) URL.")
             model = os.environ.get("MDE_LOCAL_MODEL", "local-model")
-            print(f"AI provider ready: local")
+            print("AI provider ready: local")
             print(f"Model: {model}")
             print(f"Base URL: {base_url}")
             return 0
