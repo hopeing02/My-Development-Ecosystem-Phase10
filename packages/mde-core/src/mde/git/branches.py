@@ -20,8 +20,12 @@ def local_branch_exists(branch: str, repository_root: Path) -> bool:
     return bool(output.strip())
 
 
-def remote_branch_exists(branch: str, repository_root: Path, remote: str = "origin") -> bool:
-    output = run_git("branch", "-r", "--list", f"{remote}/{branch}", repository_root=repository_root)
+def remote_branch_exists(
+    branch: str, repository_root: Path, remote: str = "origin"
+) -> bool:
+    output = run_git(
+        "branch", "-r", "--list", f"{remote}/{branch}", repository_root=repository_root
+    )
     return bool(output.strip())
 
 
@@ -40,7 +44,14 @@ def create_task_branch(
         checkout_branch(branch, repository_root)
         return
     if remote_branch_exists(branch, repository_root, remote):
-        run_git("checkout", "-b", branch, "--track", f"{remote}/{branch}", repository_root=repository_root)
+        run_git(
+            "checkout",
+            "-b",
+            branch,
+            "--track",
+            f"{remote}/{branch}",
+            repository_root=repository_root,
+        )
         return
     if current_branch(repository_root) != base_branch:
         checkout_branch(base_branch, repository_root)

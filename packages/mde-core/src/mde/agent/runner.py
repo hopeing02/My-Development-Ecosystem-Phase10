@@ -38,10 +38,11 @@ def run_once(
     remote: str = "origin",
     branch: str | None = None,
 ) -> AgentResult:
-    """Run one Mobile Sync cycle under the Agent lock.
+    """Run one self-healing Mobile Sync cycle under the Agent lock.
 
-    ``auto_save`` is retained for CLI compatibility. Phase 5 defaults to commit and
-    push, while callers can explicitly disable push through ``auto_push=False``.
+    Task workflows execute Ruff auto-fix, Ruff validation, pytest, and the bounded
+    AI repair loop before Mobile Sync commits or pushes any result. ``save`` remains
+    a separate final Git-only command for manual use.
     """
     root = (repository_root or Path.cwd()).resolve()
     started_perf = time.perf_counter()
@@ -58,7 +59,7 @@ def run_once(
 
     try:
         with AgentLock(root):
-            logger.info("MDE Agent Mobile Sync cycle started: %s", root)
+            logger.info("MDE Agent self-healing Mobile Sync cycle started: %s", root)
             sync_result = run_mobile_sync(
                 root,
                 policy=SyncPolicy(

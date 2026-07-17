@@ -8,7 +8,9 @@ from mde.workflow.models import WorkflowContext, WorkflowStep
 
 
 def context(root: Path) -> WorkflowContext:
-    return WorkflowContext(workflow_name="test", repository_root=root, task_id="TASK-TEST")
+    return WorkflowContext(
+        workflow_name="test", repository_root=root, task_id="TASK-TEST"
+    )
 
 
 def test_testing_plugin_runs_command_and_writes_log(tmp_path: Path) -> None:

@@ -4,7 +4,9 @@ __pycache__/
 .venv/
 venv/
 .deps/
+.test-deps/
 .black-cache/
+.incoming/
 .pytest_cache/
 .ruff_cache/
 .coverage

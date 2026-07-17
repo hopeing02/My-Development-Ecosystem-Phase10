@@ -12,15 +12,30 @@ from mde.sync.models import SyncPolicy
 def patch_git(monkeypatch, *, changed=False, files=()):
     calls = []
     monkeypatch.setattr("mde.sync.engine.git.ensure_repository", lambda root: root)
-    monkeypatch.setattr("mde.sync.engine.git.ensure_clean_worktree", lambda root: calls.append("clean"))
-    monkeypatch.setattr("mde.sync.engine.git.current_branch", lambda root: "feature/mobile-sync")
-    monkeypatch.setattr("mde.sync.engine.git.fetch", lambda **kwargs: calls.append("fetch"))
-    monkeypatch.setattr("mde.sync.engine.git.has_remote_changes", lambda *args, **kwargs: changed)
-    monkeypatch.setattr("mde.sync.engine.git.pull_fast_forward", lambda **kwargs: calls.append("pull"))
+    monkeypatch.setattr(
+        "mde.sync.engine.git.ensure_clean_worktree", lambda root: calls.append("clean")
+    )
+    monkeypatch.setattr(
+        "mde.sync.engine.git.current_branch", lambda root: "feature/mobile-sync"
+    )
+    monkeypatch.setattr(
+        "mde.sync.engine.git.fetch", lambda **kwargs: calls.append("fetch")
+    )
+    monkeypatch.setattr(
+        "mde.sync.engine.git.has_remote_changes", lambda *args, **kwargs: changed
+    )
+    monkeypatch.setattr(
+        "mde.sync.engine.git.pull_fast_forward", lambda **kwargs: calls.append("pull")
+    )
     monkeypatch.setattr("mde.sync.engine.git.changed_files", lambda root: tuple(files))
     monkeypatch.setattr("mde.sync.engine.git.add", lambda **kwargs: calls.append("add"))
-    monkeypatch.setattr("mde.sync.engine.git.commit", lambda *args, **kwargs: calls.append("commit") or "abc123")
-    monkeypatch.setattr("mde.sync.engine.git.push", lambda **kwargs: calls.append("push"))
+    monkeypatch.setattr(
+        "mde.sync.engine.git.commit",
+        lambda *args, **kwargs: calls.append("commit") or "abc123",
+    )
+    monkeypatch.setattr(
+        "mde.sync.engine.git.push", lambda **kwargs: calls.append("push")
+    )
     return calls
 
 
@@ -52,6 +67,7 @@ def test_sync_executes_pending_task_and_pushes_result(tmp_path: Path, monkeypatc
         active = store.claim(task)
         result = SimpleNamespace(status="completed")
         from mde.task.types import TaskResult, utc_now
+
         finished = TaskResult(
             task_id=active.task_id,
             status="completed",
@@ -113,6 +129,7 @@ task:
     def runner(task, root, store):
         active = store.claim(task)
         from mde.task.types import TaskResult, utc_now
+
         finished = TaskResult(
             task_id=active.task_id,
             status="completed",

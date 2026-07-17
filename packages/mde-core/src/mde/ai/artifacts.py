@@ -56,7 +56,9 @@ def write_response_bundle(
         "artifacts": manifest_artifacts,
     }
     manifest_path = bundle_dir / "manifest.yaml"
-    manifest_path.write_text(yaml.safe_dump(manifest, sort_keys=False), encoding="utf-8")
+    manifest_path.write_text(
+        yaml.safe_dump(manifest, sort_keys=False), encoding="utf-8"
+    )
     return manifest_path
 
 
@@ -64,6 +66,8 @@ def load_manifest(path: Path) -> dict[str, Any]:
     if not path.is_file():
         raise ArtifactError(f"AI artifact manifest not found: {path}")
     loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(loaded, dict) or not isinstance(loaded.get("artifacts", []), list):
+    if not isinstance(loaded, dict) or not isinstance(
+        loaded.get("artifacts", []), list
+    ):
         raise ArtifactError(f"Invalid AI artifact manifest: {path}")
     return loaded

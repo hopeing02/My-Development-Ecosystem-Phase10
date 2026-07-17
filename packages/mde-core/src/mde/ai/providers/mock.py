@@ -18,7 +18,9 @@ class MockAIProvider:
     def execute(self, request: AIRequest) -> AIResponse:
         raw_artifacts = request.context.get("artifacts", ())
         artifacts: list[AIArtifact] = []
-        if isinstance(raw_artifacts, Sequence) and not isinstance(raw_artifacts, (str, bytes)):
+        if isinstance(raw_artifacts, Sequence) and not isinstance(
+            raw_artifacts, (str, bytes)
+        ):
             for item in raw_artifacts:
                 if not isinstance(item, Mapping):
                     continue
