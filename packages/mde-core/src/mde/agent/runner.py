@@ -51,7 +51,7 @@ def run_once(
     logger = create_logger("mde.agent", log_path)
     heartbeat = HeartbeatWriter(root)
     push_enabled = True if auto_push is None else auto_push
-    commit_enabled = True if auto_save or auto_push is None else bool(auto_save)
+    commit_enabled = True
 
     heartbeat.write(
         AgentHeartbeat(status="running", started_at=started_at, updated_at=started_at)
