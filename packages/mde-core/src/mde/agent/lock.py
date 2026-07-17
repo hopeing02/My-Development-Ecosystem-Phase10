@@ -20,7 +20,7 @@ class LockInfo:
 
 
 def build_lock_content(process_id: int, created_at: str) -> str:
-    return f"process_id={process_id}\n" f"created_at={created_at}\n"
+    return f"process_id={process_id}\ncreated_at={created_at}\n"
 
 
 def acquire_lock(root_dir: Path | None = None) -> LockInfo:

@@ -1,11 +1,17 @@
 {
-  "updated_at": "2026-07-15T15:58:50.970872+00:00",
+  "updated_at": "2026-07-17T11:59:51.794776+00:00",
   "counts": {
     "pending": 0,
     "processing": 0,
-    "completed": 0,
+    "completed": 1,
     "failed": 0
   },
-  "latest_completed": [],
+  "latest_completed": [
+    {
+      "id": "MOBILE-AI-YAML-TEST-20260717-V3",
+      "title": "Verify end-to-end mobile YAML automatic push",
+      "workflow": "feature"
+    }
+  ],
   "latest_failed": []
 }
