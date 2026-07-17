@@ -1,0 +1,24 @@
+version: 1
+task:
+  id: MOBILE-AI-YAML-TEST-20260717
+  type: feature
+  title: Verify GitHub mobile YAML AI generation
+  description: Generate and apply a deterministic file from a GitHub-created mobile task YAML.
+  workflow: feature
+  source: github-mobile-test
+  repository:
+    branch: feature/mobile-ai-yaml-test-20260717
+    base_branch: test/mobile-yaml-trigger-20260717
+  execution:
+    auto_apply: true
+    run_tests: true
+    auto_save: true
+    auto_push: true
+  inputs:
+    ai:
+      provider: mock
+      artifacts:
+        - path: generated/mobile-yaml-ai-test.txt
+          content: AI code generation applied from GitHub mobile YAML test on 2026-07-17.
+  acceptance:
+    - Generated file exists with the requested content.
