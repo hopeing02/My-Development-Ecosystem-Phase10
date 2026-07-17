@@ -147,3 +147,57 @@ task:
     )
     assert result.commit_hash is None
     assert "commit" not in calls
+
+
+def test_task_branch_sync_does_not_rewrite_summary_after_checkout(
+    tmp_path: Path, monkeypatch
+):
+    patch_git(monkeypatch, files=("tasks/completed/TASK-BRANCH.yaml",))
+    monkeypatch.setattr(
+        "mde.sync.engine.create_task_branch", lambda *args, **kwargs: None
+    )
+    summary_writes = []
+    monkeypatch.setattr(
+        "mde.sync.engine.write_mobile_summary",
+        lambda root: summary_writes.append(root),
+    )
+    pending = tmp_path / "tasks" / "pending"
+    pending.mkdir(parents=True)
+    (pending / "TASK-BRANCH.yaml").write_text(
+        """version: 1
+task:
+  id: TASK-BRANCH
+  type: docs
+  title: Branch summary
+  workflow: docs
+  execution:
+    auto_save: true
+    auto_push: true
+""",
+        encoding="utf-8",
+    )
+
+    def runner(task, root, store):
+        active = store.claim(task)
+        from mde.task.types import TaskResult, utc_now
+
+        finished = TaskResult(
+            task_id=active.task_id,
+            status="completed",
+            workflow=active.workflow,
+            started_at=utc_now(),
+            completed_at=utc_now(),
+        )
+        store.complete(active, finished)
+        return finished
+
+    run_mobile_sync(
+        tmp_path,
+        policy=SyncPolicy(
+            respect_task_policy=True,
+            task_branches=True,
+        ),
+        task_runner=runner,
+    )
+
+    assert summary_writes == [tmp_path.resolve()]

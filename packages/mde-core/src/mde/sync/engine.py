@@ -140,7 +140,8 @@ def run_mobile_sync(
                     )
                     pushed = True
 
-    write_mobile_summary(root)
+    if not active_policy.task_branches:
+        write_mobile_summary(root)
     return SyncResult(
         repository_root=root,
         remote_changed=remote_changed,
