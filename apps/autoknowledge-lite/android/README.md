@@ -12,3 +12,25 @@
 6. 브라우저 등에서 공유 버튼을 누르고 `AutoKnowledge Lite`를 선택합니다.
 
 API 키는 Android 앱에 저장하지 않습니다. AI 처리는 백엔드가 담당합니다.
+
+## APK 빌드
+
+PowerShell에서 실행합니다.
+
+```powershell
+cd C:\My-Development-Ecosystem-Phase10\apps\autoknowledge-lite\android
+$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+.\gradlew.bat assembleDebug
+```
+
+생성 파일:
+
+```text
+app\build\outputs\apk\debug\app-debug.apk
+```
+
+단위 테스트:
+
+```powershell
+.\gradlew.bat testDebugUnitTest
+```
