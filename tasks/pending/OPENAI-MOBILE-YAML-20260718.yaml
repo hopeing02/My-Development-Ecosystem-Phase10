@@ -1,0 +1,24 @@
+version: 1
+task:
+  id: OPENAI-MOBILE-YAML-20260718
+  type: feature
+  title: Verify real OpenAI mobile YAML automation
+  description: Create generated/openai_mobile_real.py containing a function named openai_mobile_verified that returns the exact string real-openai-mobile-success. Include a concise module docstring and type annotation. Return only this requested artifact.
+  workflow: feature
+  source: github-mobile-real-openai
+  repository:
+    branch: feature/openai-mobile-yaml-20260718
+    base_branch: test/openai-mobile-yaml-20260718
+  execution:
+    auto_apply: true
+    run_tests: true
+    auto_save: true
+    auto_push: true
+  inputs:
+    ai:
+      provider: openai
+      max_fix_attempts: 0
+  acceptance:
+    - generated/openai_mobile_real.py exists.
+    - openai_mobile_verified returns real-openai-mobile-success.
+    - Quality checks pass and the task branch is pushed.
