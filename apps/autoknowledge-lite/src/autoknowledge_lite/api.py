@@ -14,6 +14,12 @@ from autoknowledge_lite.ai import (
     KnowledgeAnalyzer,
     analyzer_from_environment,
 )
+from autoknowledge_lite.content import (
+    ContentFetcher,
+    ContentFetchError,
+    HttpContentFetcher,
+    should_fetch_content,
+)
 from autoknowledge_lite.models import (
     MarkdownRequest,
     MarkdownResult,
@@ -39,11 +45,13 @@ def create_app(
     store: JsonShareStore | None = None,
     analyzer: KnowledgeAnalyzer | None = None,
     auto_process: bool | None = None,
+    content_fetcher: ContentFetcher | None = None,
 ) -> FastAPI:
     """Create an API application with an injectable persistence boundary."""
 
     share_store = store or JsonShareStore()
     knowledge_analyzer = analyzer or analyzer_from_environment()
+    web_content_fetcher = content_fetcher or HttpContentFetcher()
     automatic_processing = (
         _environment_flag("AUTOKNOWLEDGE_AUTO_PROCESS", default=True)
         if auto_process is None
@@ -97,7 +105,7 @@ def create_app(
         """Analyze and render an accepted job after the API response is sent."""
 
         try:
-            record = share_store.load(job_id)
+            record = enrich_record(share_store.load(job_id))
             analysis = knowledge_analyzer.analyze(record)
             processed_at = datetime.now(timezone.utc)
             processed = record.model_copy(
@@ -118,11 +126,25 @@ def create_app(
         ):
             LOGGER.exception("Automatic processing failed for share job %s", job_id)
 
+    def enrich_record(record: ShareRecord) -> ShareRecord:
+        if not should_fetch_content(record):
+            return record
+        try:
+            content = web_content_fetcher.fetch(record.source_url or "")
+        except ContentFetchError:
+            LOGGER.exception(
+                "Unable to fetch source content for share job %s", record.job_id
+            )
+            return record
+        enriched = record.model_copy(update={"content": content})
+        share_store.update(enriched)
+        return enriched
+
     @application.post("/v1/ai/process", response_model=ProcessedShare)
     def process_share(request: ProcessRequest) -> ProcessedShare:
         job_id = str(request.job_id)
         try:
-            record = share_store.load(job_id)
+            record = enrich_record(share_store.load(job_id))
         except ShareNotFoundError as error:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

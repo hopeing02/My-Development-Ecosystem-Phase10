@@ -10,6 +10,8 @@
 
 기본 설정에서는 응답 후 백그라운드에서 AI 분석과 Markdown 생성을 자동 실행합니다. 자동 처리를 끄려면 `AUTOKNOWLEDGE_AUTO_PROCESS=false`를 설정합니다.
 
+모바일 앱이 URL만 공유한 경우 서버가 공개 웹페이지를 조회해 읽을 수 있는 본문으로 보강합니다. ChatGPT 공개 공유 링크의 이스케이프된 대화 데이터와 일반 HTML의 가시 텍스트를 지원하며, 내부망 주소·비텍스트 응답·2MB 초과 응답은 차단합니다.
+
 ## POST `/v1/ai/process`
 
 `job_id`로 접수된 작업을 읽고 분석합니다. 성공 시 `status=processed`, `processed_at`, 요약·핵심 항목·태그·제공자 정보를 반환하고 같은 JSON 파일에 저장합니다.

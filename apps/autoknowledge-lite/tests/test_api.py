@@ -187,3 +187,31 @@ def test_share_automatically_analyzes_and_renders_markdown(tmp_path: Path) -> No
     assert stored.analysis is not None
     assert stored.markdown is not None
     assert "# Automatic Note" in stored.markdown
+
+
+def test_share_fetches_url_only_content_before_automatic_analysis(
+    tmp_path: Path,
+) -> None:
+    class FakeFetcher:
+        def fetch(self, url: str) -> str:
+            assert url == "https://example.com/article"
+            return "Fetched article body. Important second fact."
+
+    store = JsonShareStore(tmp_path / "jobs")
+    client = TestClient(
+        create_app(store, auto_process=True, content_fetcher=FakeFetcher())
+    )
+
+    response = client.post(
+        "/v1/share",
+        json={
+            "content": "https://example.com/article",
+            "source_url": "https://example.com/article",
+        },
+    )
+
+    stored = store.load(response.json()["job_id"])
+    assert stored.content == "Fetched article body. Important second fact."
+    assert stored.analysis is not None
+    assert stored.analysis.summary.startswith("Fetched article body.")
+    assert stored.markdown is not None
