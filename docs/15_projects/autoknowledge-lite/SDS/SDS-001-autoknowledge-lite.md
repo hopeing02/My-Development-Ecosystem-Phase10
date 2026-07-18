@@ -1,21 +1,27 @@
-# SDS-001 · autoknowledge-lite
+# SDS-001 — autoknowledge-lite
 
 ## 1. 프로젝트 개요
 
 - 프로젝트명: `autoknowledge-lite`
 - 기술 유형: `python`
-- 상태: 초안
+- 상태: MVP 3단계 구현
 
 ## 2. 목표
 
-프로젝트의 문제, 사용자, 핵심 가치를 작성합니다.
+모바일 공유 또는 API로 전달된 콘텐츠를 검증하고 작업으로 접수한 뒤, AI 분석·Markdown 생성·Obsidian 저장·Git 동기화 흐름의 입력으로 사용합니다.
 
 ## 3. MVP 범위
 
-- [ ] 핵심 기능 정의
-- [ ] 입력·출력 정의
-- [ ] 데이터 저장 방식 정의
-- [ ] 테스트 기준 정의
+- [x] `GET /v1/status` 서비스 상태 조회
+- [x] `POST /v1/share` 공유 콘텐츠 검증 및 작업 접수
+- [x] UUID 작업 ID와 UTC 접수 시각 생성
+- [x] 작업별 UTF-8 JSON 로컬 저장
+- [x] 주입 가능한 AI 분석 인터페이스와 결정론적 로컬 분석기
+- [x] `POST /v1/ai/process` 작업 분석 및 결과 저장
+- [x] API 단위 테스트
+- [x] 실제 OpenAI·Claude 제공자 연결
+- [ ] Markdown 생성
+- [ ] Obsidian 저장과 Git 동기화
 
 ## 4. 문서 연결
 

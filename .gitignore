@@ -1,6 +1,7 @@
 # Python
 __pycache__/
 *.py[cod]
+*.egg-info/
 .venv/
 venv/
 .deps/
@@ -14,6 +15,7 @@ htmlcov/
 .mde/
 logs/
 status/agent-heartbeat.json
+apps/autoknowledge-lite/data/
 *.bak_*
 
 # Node / Next.js
