@@ -13,7 +13,7 @@ from autoknowledge_lite.store import JsonShareStore, ShareStoreError
 
 
 def client_for(tmp_path: Path) -> TestClient:
-    return TestClient(create_app(JsonShareStore(tmp_path / "jobs")))
+    return TestClient(create_app(JsonShareStore(tmp_path / "jobs"), auto_process=False))
 
 
 def test_status_reports_service_version(tmp_path: Path) -> None:
@@ -71,7 +71,7 @@ def test_share_returns_safe_error_when_storage_fails(tmp_path: Path) -> None:
         def save(self, record: ShareRecord) -> Path:
             raise ShareStoreError("private storage detail")
 
-    client = TestClient(create_app(FailingStore(tmp_path / "jobs")))
+    client = TestClient(create_app(FailingStore(tmp_path / "jobs"), auto_process=False))
 
     response = client.post("/v1/share", json={"content": "Valid content"})
 
@@ -131,7 +131,7 @@ def test_process_returns_safe_error_when_analysis_fails(tmp_path: Path) -> None:
             raise AnalysisError("private provider detail")
 
     store = JsonShareStore(tmp_path / "jobs")
-    client = TestClient(create_app(store, FailingAnalyzer()))
+    client = TestClient(create_app(store, FailingAnalyzer(), auto_process=False))
     accepted = client.post("/v1/share", json={"content": "Valid content"}).json()
 
     response = client.post("/v1/ai/process", json={"job_id": accepted["job_id"]})
@@ -170,3 +170,20 @@ def test_markdown_requires_analysis(tmp_path: Path) -> None:
 
     assert response.status_code == 409
     assert response.json() == {"detail": "Share job must be analyzed first."}
+
+
+def test_share_automatically_analyzes_and_renders_markdown(tmp_path: Path) -> None:
+    store = JsonShareStore(tmp_path / "jobs")
+    client = TestClient(create_app(store, auto_process=True))
+
+    response = client.post(
+        "/v1/share",
+        json={"title": "Automatic Note", "content": "First fact. Second fact."},
+    )
+
+    assert response.status_code == 202
+    stored = store.load(response.json()["job_id"])
+    assert stored.status == "processed"
+    assert stored.analysis is not None
+    assert stored.markdown is not None
+    assert "# Automatic Note" in stored.markdown

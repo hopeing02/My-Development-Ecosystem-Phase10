@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import BackgroundTasks, FastAPI, HTTPException, status
 
 from autoknowledge_lite.ai import (
     AnalysisError,
@@ -37,11 +38,17 @@ APP_VERSION = "0.1.0"
 def create_app(
     store: JsonShareStore | None = None,
     analyzer: KnowledgeAnalyzer | None = None,
+    auto_process: bool | None = None,
 ) -> FastAPI:
     """Create an API application with an injectable persistence boundary."""
 
     share_store = store or JsonShareStore()
     knowledge_analyzer = analyzer or analyzer_from_environment()
+    automatic_processing = (
+        _environment_flag("AUTOKNOWLEDGE_AUTO_PROCESS", default=True)
+        if auto_process is None
+        else auto_process
+    )
     application = FastAPI(
         title="AutoKnowledge Lite",
         version=APP_VERSION,
@@ -57,7 +64,10 @@ def create_app(
         response_model=ShareAccepted,
         status_code=status.HTTP_202_ACCEPTED,
     )
-    def create_share(request: ShareRequest) -> ShareAccepted:
+    def create_share(
+        request: ShareRequest,
+        background_tasks: BackgroundTasks,
+    ) -> ShareAccepted:
         received_at = datetime.now(timezone.utc)
         record = ShareRecord(
             job_id=str(uuid4()),
@@ -76,10 +86,37 @@ def create_app(
                 detail="Unable to accept shared content.",
             ) from error
         LOGGER.info("Accepted share job %s", record.job_id)
+        if automatic_processing:
+            background_tasks.add_task(auto_process_job, record.job_id)
         return ShareAccepted(
             job_id=record.job_id,
             received_at=record.received_at,
         )
+
+    def auto_process_job(job_id: str) -> None:
+        """Analyze and render an accepted job after the API response is sent."""
+
+        try:
+            record = share_store.load(job_id)
+            analysis = knowledge_analyzer.analyze(record)
+            processed_at = datetime.now(timezone.utc)
+            processed = record.model_copy(
+                update={
+                    "status": "processed",
+                    "processed_at": processed_at,
+                    "analysis": analysis,
+                }
+            )
+            markdown = render_markdown(processed)
+            share_store.update(processed.model_copy(update={"markdown": markdown}))
+            LOGGER.info("Automatically processed share job %s", job_id)
+        except (
+            AnalysisError,
+            MarkdownRenderError,
+            ShareNotFoundError,
+            ShareStoreError,
+        ):
+            LOGGER.exception("Automatic processing failed for share job %s", job_id)
 
     @application.post("/v1/ai/process", response_model=ProcessedShare)
     def process_share(request: ProcessRequest) -> ProcessedShare:
@@ -165,6 +202,13 @@ def create_app(
         return MarkdownResult(job_id=job_id, markdown=markdown)
 
     return application
+
+
+def _environment_flag(name: str, *, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() not in {"0", "false", "no", "off"}
 
 
 app = create_app()

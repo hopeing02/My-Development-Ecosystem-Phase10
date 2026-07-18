@@ -14,6 +14,7 @@
 
 - [x] Android `ACTION_SEND` 텍스트 공유 이벤트 수신
 - [x] 공유 제목·본문·출처 URL의 백엔드 전송
+- [x] 공유 접수 후 AI 분석·Markdown 생성 백그라운드 자동 처리
 - [x] `GET /v1/status` 서비스 상태 조회
 - [x] `POST /v1/share` 공유 콘텐츠 검증 및 작업 접수
 - [x] UUID 작업 ID와 UTC 접수 시각 생성
