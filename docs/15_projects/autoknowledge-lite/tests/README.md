@@ -11,4 +11,6 @@
 - OpenAI Responses API 요청·응답 변환
 - Anthropic Messages API 요청·응답 변환
 - 제공자 선택과 외부 오류 비노출
+- 분석 결과의 Markdown 렌더링과 저장
+- 미분석 작업의 `409` 거부
 - pytest 임시 디렉터리를 사용한 사용자 데이터 격리

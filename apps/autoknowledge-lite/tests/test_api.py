@@ -139,3 +139,34 @@ def test_process_returns_safe_error_when_analysis_fails(tmp_path: Path) -> None:
     assert response.status_code == 502
     assert response.json() == {"detail": "Unable to analyze shared content."}
     assert "private provider detail" not in response.text
+
+
+def test_markdown_renders_and_persists_analyzed_job(tmp_path: Path) -> None:
+    client = client_for(tmp_path)
+    accepted = client.post(
+        "/v1/share",
+        json={"title": "Knowledge Note", "content": "First point. Second point."},
+    ).json()
+    client.post("/v1/ai/process", json={"job_id": accepted["job_id"]})
+
+    response = client.post("/v1/markdown", json={"job_id": accepted["job_id"]})
+
+    assert response.status_code == 200
+    markdown = response.json()["markdown"]
+    assert markdown.startswith("---\n")
+    assert "# Knowledge Note" in markdown
+    assert "## Key Points" in markdown
+    stored = json.loads(
+        (tmp_path / "jobs" / f"{accepted['job_id']}.json").read_text(encoding="utf-8")
+    )
+    assert stored["markdown"] == markdown
+
+
+def test_markdown_requires_analysis(tmp_path: Path) -> None:
+    client = client_for(tmp_path)
+    accepted = client.post("/v1/share", json={"content": "Queued"}).json()
+
+    response = client.post("/v1/markdown", json={"job_id": accepted["job_id"]})
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "Share job must be analyzed first."}

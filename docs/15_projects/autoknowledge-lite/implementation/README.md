@@ -21,4 +21,10 @@
 - 환경변수 기반 제공자·모델 선택
 - 외부 응답의 JSON 검증과 안전한 오류 변환
 
-Markdown, Obsidian, Git 연동은 후속 구현 단위입니다.
+## MVP 4: Markdown 생성
+
+- YAML 호환 메타데이터와 지식 본문 렌더링
+- 분석 선행 조건 검증
+- 완성된 Markdown의 작업 레코드 저장
+
+Obsidian, Git 연동은 후속 구현 단위입니다.

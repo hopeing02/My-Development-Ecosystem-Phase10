@@ -55,6 +55,7 @@ class ShareRecord(BaseModel):
     shared_at: datetime | None = None
     processed_at: datetime | None = None
     analysis: KnowledgeAnalysis | None = None
+    markdown: str | None = None
 
 
 class ShareAccepted(BaseModel):
@@ -78,6 +79,15 @@ class ProcessedShare(BaseModel):
     status: Literal["processed"] = "processed"
     processed_at: datetime
     analysis: KnowledgeAnalysis
+
+
+class MarkdownRequest(BaseModel):
+    job_id: UUID
+
+
+class MarkdownResult(BaseModel):
+    job_id: str
+    markdown: str
 
 
 class StatusResponse(BaseModel):

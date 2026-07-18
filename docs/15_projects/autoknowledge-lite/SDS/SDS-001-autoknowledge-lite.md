@@ -20,7 +20,7 @@
 - [x] `POST /v1/ai/process` 작업 분석 및 결과 저장
 - [x] API 단위 테스트
 - [x] 실제 OpenAI·Claude 제공자 연결
-- [ ] Markdown 생성
+- [x] `POST /v1/markdown` Markdown 생성 및 작업 저장
 - [ ] Obsidian 저장과 Git 동기화
 
 ## 4. 문서 연결

@@ -17,6 +17,10 @@
 - 분석기 실패: `502`
 - 저장소 실패: `503`
 
+## POST `/v1/markdown`
+
+분석된 작업을 YAML 메타데이터가 포함된 Markdown으로 변환하고 작업 JSON에 저장합니다. 아직 분석되지 않은 작업은 `409`를 반환합니다.
+
 ## AI 제공자 설정
 
 기본 분석기는 외부 호출이 없는 `local-deterministic` 구현입니다. `AUTOKNOWLEDGE_AI_PROVIDER`로 제공자를 선택합니다.

@@ -14,6 +14,8 @@ from autoknowledge_lite.ai import (
     analyzer_from_environment,
 )
 from autoknowledge_lite.models import (
+    MarkdownRequest,
+    MarkdownResult,
     ProcessedShare,
     ProcessRequest,
     ShareAccepted,
@@ -21,6 +23,7 @@ from autoknowledge_lite.models import (
     ShareRequest,
     StatusResponse,
 )
+from autoknowledge_lite.markdown import MarkdownRenderError, render_markdown
 from autoknowledge_lite.store import (
     JsonShareStore,
     ShareNotFoundError,
@@ -125,6 +128,41 @@ def create_app(
             processed_at=processed_at,
             analysis=analysis,
         )
+
+    @application.post("/v1/markdown", response_model=MarkdownResult)
+    def create_markdown(request: MarkdownRequest) -> MarkdownResult:
+        job_id = str(request.job_id)
+        try:
+            record = share_store.load(job_id)
+        except ShareNotFoundError as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Share job not found.",
+            ) from error
+        except ShareStoreError as error:
+            LOGGER.exception("Failed to load share job %s", job_id)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Unable to load shared content.",
+            ) from error
+
+        try:
+            markdown = render_markdown(record)
+        except MarkdownRenderError as error:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Share job must be analyzed first.",
+            ) from error
+
+        try:
+            share_store.update(record.model_copy(update={"markdown": markdown}))
+        except ShareStoreError as error:
+            LOGGER.exception("Failed to save Markdown for share job %s", job_id)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Unable to save Markdown document.",
+            ) from error
+        return MarkdownResult(job_id=job_id, markdown=markdown)
 
     return application
 
