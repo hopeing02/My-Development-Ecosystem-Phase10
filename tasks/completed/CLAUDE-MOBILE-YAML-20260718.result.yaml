@@ -1,0 +1,51 @@
+version: 1
+result:
+  task_id: CLAUDE-MOBILE-YAML-20260718
+  status: completed
+  workflow: feature
+  started_at: '2026-07-18T04:00:54.399644+00:00'
+  completed_at: '2026-07-18T04:01:25.272133+00:00'
+  steps:
+  - id: prepare
+    command: task.prepare
+    status: completed
+    attempts: 1
+    error: null
+  - id: generate
+    command: ai.generate
+    status: completed
+    attempts: 1
+    error: null
+  - id: review
+    command: change.review
+    status: completed
+    attempts: 1
+    error: null
+  - id: apply
+    command: change.apply
+    status: completed
+    attempts: 1
+    error: null
+  - id: test
+    command: test.run
+    status: completed
+    attempts: 1
+    error: null
+  - id: save
+    command: git.save
+    status: skipped
+    attempts: 0
+    error: null
+  - id: push
+    command: git.push
+    status: skipped
+    attempts: 0
+    error: null
+  - id: complete
+    command: task.complete
+    status: completed
+    attempts: 1
+    error: null
+  summary: 'Task completed: Verify real Claude mobile YAML automation'
+  error: null
+  last_successful_step: complete
