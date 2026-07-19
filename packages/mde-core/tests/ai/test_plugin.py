@@ -45,9 +45,13 @@ def test_apply_creates_backup_for_existing_file(tmp_path: Path) -> None:
         task_id="TASK-2",
         data={"inputs": {"artifacts": [{"path": "src/output.txt", "content": "new"}]}},
     )
-    generated = registry.get("ai.generate")(context, WorkflowStep(id="generate", command="ai.generate"))
+    generated = registry.get("ai.generate")(
+        context, WorkflowStep(id="generate", command="ai.generate")
+    )
     context.outputs["generate"] = generated
-    registry.get("change.apply")(context, WorkflowStep(id="apply", command="change.apply"))
+    registry.get("change.apply")(
+        context, WorkflowStep(id="apply", command="change.apply")
+    )
 
     assert target.read_text() == "new"
     assert (tmp_path / ".mde/backups/TASK-2/apply/src/output.txt").read_text() == "old"

@@ -14,6 +14,7 @@ def valid_document():
             "title": "Update README",
             "description": "Add workflow usage.",
             "workflow": "docs",
+            "assignee": "github-user-a",
             "source": "mobile",
             "execution": {"run_tests": True},
             "acceptance": ["README updated"],
@@ -25,6 +26,7 @@ def test_validate_task_document():
     task = validate_task_document(valid_document())
     assert task.task_id == "TASK-001"
     assert task.workflow == "docs"
+    assert task.assignee == "github-user-a"
     assert task.execution.run_tests is True
 
 
@@ -43,3 +45,19 @@ def test_missing_required_field_is_rejected():
     del document["task"]["workflow"]
     with pytest.raises(TaskValidationError):
         validate_task_document(document)
+
+
+@pytest.mark.parametrize("assignee", ["", "bad user", "owner/name", "-owner"])
+def test_invalid_assignee_is_rejected(assignee: str):
+    document = valid_document()
+    document["task"]["assignee"] = assignee
+
+    with pytest.raises(TaskValidationError, match="assignee"):
+        validate_task_document(document)
+
+
+def test_legacy_task_without_assignee_can_still_be_loaded():
+    document = valid_document()
+    del document["task"]["assignee"]
+
+    assert validate_task_document(document).assignee is None

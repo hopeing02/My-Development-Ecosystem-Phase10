@@ -13,18 +13,16 @@ from mde.workflow.registry import CommandRegistry
 
 
 class TestExecutionError(RuntimeError):
-    """Raised when the configured test process exits unsuccessfully."""
+    """Raised when formatting, linting, or tests fail."""
 
     __test__ = False
 
 
 @dataclass(frozen=True)
-class TestRunResult:
+class ProcessResult:
     command: tuple[str, ...]
     return_code: int
-    passed: int | None
-    failed: int | None
-    log_path: Path
+    output: str
 
 
 def _normalize_command(value: object) -> tuple[str, ...]:
@@ -44,46 +42,68 @@ def _count(pattern: str, output: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def run_tests(context: WorkflowContext, step: WorkflowStep) -> dict[str, Any]:
-    configured = step.args.get("command", context.data.get("testing_command"))
-    command = _normalize_command(configured)
-    timeout = step.timeout or int(step.args.get("timeout", 900))
-    log_dir = context.repository_root / "logs" / "tests"
-    log_dir.mkdir(parents=True, exist_ok=True)
-    label = context.task_id or context.workflow_name
-    log_path = log_dir / f"{label}-{step.id}.log"
-
+def _run(command: tuple[str, ...], root: Path, timeout: int) -> ProcessResult:
     completed = subprocess.run(
         command,
-        cwd=context.repository_root,
+        cwd=root,
         capture_output=True,
         text=True,
         check=False,
         timeout=timeout,
     )
     output = (completed.stdout or "") + (completed.stderr or "")
-    log_path.write_text(output, encoding="utf-8")
-    passed = _count(r"(\d+) passed", output)
-    failed = _count(r"(\d+) failed", output)
+    return ProcessResult(command, completed.returncode, output)
 
-    result = TestRunResult(
-        command=command,
-        return_code=completed.returncode,
-        passed=passed,
-        failed=failed,
-        log_path=log_path,
+
+def run_tests(context: WorkflowContext, step: WorkflowStep) -> dict[str, Any]:
+    """Auto-fix safe Ruff issues, then lint and run the project tests.
+
+    A remaining failure raises TestExecutionError. The existing Agent fix loop then
+    invokes ai.fix, reapplies the generated patch, and executes this step again.
+    """
+    root = context.repository_root
+    timeout = step.timeout or int(step.args.get("timeout", 900))
+    configured = step.args.get("command", context.data.get("testing_command"))
+    test_command = _normalize_command(configured)
+    quality_enabled = bool(step.args.get("quality", configured is None))
+    quality_commands = (
+        ("uv", "run", "ruff", "check", ".", "--fix"),
+        ("uv", "run", "ruff", "format", "."),
+        ("uv", "run", "ruff", "check", "."),
     )
-    if completed.returncode != 0:
-        raise TestExecutionError(
-            f"Tests failed with exit code {completed.returncode}. Log: {log_path}"
-        )
+    commands = (
+        quality_commands + (test_command,) if quality_enabled else (test_command,)
+    )
+
+    log_dir = root / "logs" / "tests"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    label = context.task_id or context.workflow_name
+    log_path = log_dir / f"{label}-{step.id}.log"
+    sections: list[str] = []
+    results: list[ProcessResult] = []
+
+    for command in commands:
+        result = _run(command, root, timeout)
+        results.append(result)
+        sections.append(f"$ {' '.join(command)}\n{result.output}")
+        if result.return_code != 0:
+            log_path.write_text("\n\n".join(sections), encoding="utf-8")
+            phase = "Quality command" if command != test_command else "Tests"
+            context.data["last_test_error"] = (
+                f"{phase} failed with exit code {result.return_code}: "
+                f"{' '.join(command)}. Log: {log_path}"
+            )
+            raise TestExecutionError(context.data["last_test_error"])
+
+    log_path.write_text("\n\n".join(sections), encoding="utf-8")
+    test_output = results[-1].output
     return {
-        "message": "Tests passed.",
-        "command": list(result.command),
-        "return_code": result.return_code,
-        "passed": result.passed,
-        "failed": result.failed,
-        "log_path": str(result.log_path),
+        "message": "Ruff auto-fix, lint, and tests passed.",
+        "commands": [list(result.command) for result in results],
+        "return_code": 0,
+        "passed": _count(r"(\d+) passed", test_output),
+        "failed": _count(r"(\d+) failed", test_output),
+        "log_path": str(log_path),
     }
 
 

@@ -8,10 +8,11 @@ from mde.agent import runner
 
 def test_run_once_uses_mobile_sync_and_writes_heartbeat(tmp_path: Path, monkeypatch):
     (tmp_path / ".git").mkdir()
-    monkeypatch.setattr(
-        runner,
-        "run_mobile_sync",
-        lambda root, policy: SimpleNamespace(
+    policies = []
+
+    def fake_mobile_sync(root, policy):
+        policies.append(policy)
+        return SimpleNamespace(
             remote_changed=True,
             pulled=True,
             recovered_count=1,
@@ -19,7 +20,12 @@ def test_run_once_uses_mobile_sync_and_writes_heartbeat(tmp_path: Path, monkeypa
             failed_tasks=(),
             commit_hash="abc123",
             pushed=True,
-        ),
+        )
+
+    monkeypatch.setattr(
+        runner,
+        "run_mobile_sync",
+        fake_mobile_sync,
     )
 
     result = runner.run_once(repository_root=tmp_path)
@@ -27,6 +33,8 @@ def test_run_once_uses_mobile_sync_and_writes_heartbeat(tmp_path: Path, monkeypa
     assert result.completed_tasks == ("TASK-1",)
     assert result.commit_hash == "abc123"
     assert result.pushed is True
+    assert policies[0].auto_commit is True
+    assert policies[0].auto_push is True
     assert result.heartbeat_path.is_file()
     text = result.heartbeat_path.read_text(encoding="utf-8")
     assert '"status": "completed"' in text

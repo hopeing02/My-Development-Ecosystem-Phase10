@@ -5,6 +5,7 @@ from mde.ai.errors import AIResponseValidationError
 from mde.ai.models import AIRequest
 from mde.ai.providers.base_http import BaseHTTPAIProvider, SYSTEM_PROMPT
 
+
 class GeminiProvider(BaseHTTPAIProvider):
     name = "gemini"
     api_key_env = "GEMINI_API_KEY"
@@ -13,7 +14,16 @@ class GeminiProvider(BaseHTTPAIProvider):
 
     def build_request(self, request: AIRequest, *, api_key: str, model: str):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{quote(model)}:generateContent?key={quote(api_key)}"
-        return url, {}, {"systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]}, "contents": [{"role": "user", "parts": [{"text": self.user_prompt(request)}]}]}
+        return (
+            url,
+            {},
+            {
+                "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+                "contents": [
+                    {"role": "user", "parts": [{"text": self.user_prompt(request)}]}
+                ],
+            },
+        )
 
     def extract_text_and_usage(self, data: dict[str, Any]):
         chunks = []

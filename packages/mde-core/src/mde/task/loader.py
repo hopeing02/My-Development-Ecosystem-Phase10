@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any
 
 import yaml
@@ -17,6 +18,9 @@ class TaskValidationError(MDEError, ValueError):
     """Raised when a task YAML document is invalid."""
 
 
+_ASSIGNEE_PATTERN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
+
+
 def _require_mapping(value: Any, name: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise TaskValidationError(f"'{name}' must be a mapping.")
@@ -27,6 +31,17 @@ def _require_text(mapping: dict[str, Any], key: str) -> str:
     value = mapping.get(key)
     if not isinstance(value, str) or not value.strip():
         raise TaskValidationError(f"Task field '{key}' must be a non-empty string.")
+    return value.strip()
+
+
+def _optional_assignee(task: dict[str, Any]) -> str | None:
+    value = task.get("assignee")
+    if value is None:
+        return None
+    if not isinstance(value, str) or not _ASSIGNEE_PATTERN.fullmatch(value.strip()):
+        raise TaskValidationError(
+            "Task field 'assignee' must be a valid GitHub username."
+        )
     return value.strip()
 
 
@@ -51,7 +66,9 @@ def validate_task_document(document: Any) -> TaskDefinition:
         raise TaskValidationError("Task 'inputs' must be a mapping.")
     if not isinstance(metadata, dict):
         raise TaskValidationError("Task 'metadata' must be a mapping.")
-    if not isinstance(acceptance, list) or not all(isinstance(item, str) for item in acceptance):
+    if not isinstance(acceptance, list) or not all(
+        isinstance(item, str) for item in acceptance
+    ):
         raise TaskValidationError("Task 'acceptance' must be a list of strings.")
 
     return TaskDefinition(
@@ -61,9 +78,14 @@ def validate_task_document(document: Any) -> TaskDefinition:
         title=_require_text(task, "title"),
         description=str(task.get("description", "")).strip(),
         workflow=_require_text(task, "workflow"),
+        assignee=_optional_assignee(task),
         source=str(task.get("source", "unknown")).strip() or "unknown",
         branch=str(repository["branch"]).strip() if repository.get("branch") else None,
-        base_branch=str(repository["base_branch"]).strip() if repository.get("base_branch") else None,
+        base_branch=(
+            str(repository["base_branch"]).strip()
+            if repository.get("base_branch")
+            else None
+        ),
         execution=TaskExecutionPolicy(
             auto_apply=bool(execution.get("auto_apply", False)),
             run_tests=bool(execution.get("run_tests", True)),

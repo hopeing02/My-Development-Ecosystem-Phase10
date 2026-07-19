@@ -4,6 +4,9 @@ from dataclasses import replace
 from pathlib import Path
 
 from mde.automation.fix_loop import execute_workflow_with_fix_loop
+from mde.config.project import PROJECT_CONFIG_PATH, load_project_config
+from mde.git.branches import validate_task_branch
+from mde.git.repository import current_branch
 from mde.plugins.runtime import create_runtime_registry
 from mde.task.checkpoint import CheckpointStore, TaskCheckpoint, utc_iso
 from mde.task.concurrency import TaskExecutionLock
@@ -41,6 +44,12 @@ def execute_task(
     resume: bool = True,
 ) -> TaskResult:
     root = repository_root.resolve()
+    if (root / PROJECT_CONFIG_PATH).is_file():
+        validate_task_branch(
+            task,
+            load_project_config(root),
+            active_branch=current_branch(root),
+        )
     task_store = store or TaskStore(root)
     checkpoints = CheckpointStore(root)
 
@@ -82,7 +91,11 @@ def execute_task(
 
         try:
             ai_inputs = active.inputs.get("ai", {})
-            max_fix_attempts = int(ai_inputs.get("max_fix_attempts", 0)) if isinstance(ai_inputs, dict) else 0
+            max_fix_attempts = (
+                int(ai_inputs.get("max_fix_attempts", 0))
+                if isinstance(ai_inputs, dict)
+                else 0
+            )
             workflow_result = execute_workflow_with_fix_loop(
                 workflow,
                 context,
@@ -100,7 +113,11 @@ def execute_task(
                 for step in workflow_result.steps
             )
             last_successful = next(
-                (step["id"] for step in reversed(steps) if step["status"] in {"completed", "skipped"}),
+                (
+                    step["id"]
+                    for step in reversed(steps)
+                    if step["status"] in {"completed", "skipped"}
+                ),
                 None,
             )
             completed = TaskResult(
@@ -119,7 +136,11 @@ def execute_task(
                     task_id=active.task_id,
                     workflow=active.workflow,
                     status="completed",
-                    completed_steps=tuple(step["id"] for step in steps if step["status"] in {"completed", "skipped"}),
+                    completed_steps=tuple(
+                        step["id"]
+                        for step in steps
+                        if step["status"] in {"completed", "skipped"}
+                    ),
                     last_successful_step=last_successful,
                     updated_at=utc_iso(),
                 )
@@ -140,7 +161,11 @@ def execute_task(
                     for step in error.result.steps
                 )
                 last_successful = next(
-                    (step["id"] for step in reversed(workflow_steps) if step["status"] in {"completed", "skipped"}),
+                    (
+                        step["id"]
+                        for step in reversed(workflow_steps)
+                        if step["status"] in {"completed", "skipped"}
+                    ),
                     last_successful,
                 )
             failed = TaskResult(
@@ -161,7 +186,9 @@ def execute_task(
                     task_id=active.task_id,
                     workflow=active.workflow,
                     status="failed",
-                    completed_steps=current.completed_steps if current else completed_steps,
+                    completed_steps=(
+                        current.completed_steps if current else completed_steps
+                    ),
                     last_successful_step=last_successful,
                     updated_at=utc_iso(),
                     error=str(error),

@@ -43,25 +43,37 @@ class BaseHTTPAIProvider(ABC):
     def _credentials(self) -> tuple[str, str, float, int]:
         key = str(self._setting(self.api_key, self.api_key_env, "")).strip()
         if not key:
-            raise AIConfigurationError(f"Missing API key environment variable: {self.api_key_env}")
-        model = str(self._setting(self.model, self.model_env, self.default_model)).strip()
+            raise AIConfigurationError(
+                f"Missing API key environment variable: {self.api_key_env}"
+            )
+        model = str(
+            self._setting(self.model, self.model_env, self.default_model)
+        ).strip()
         timeout = float(self._setting(self.timeout, "MDE_AI_TIMEOUT", 60))
         retries = int(self._setting(self.max_retries, "MDE_AI_MAX_RETRIES", 2))
         return key, model, timeout, max(0, retries)
 
     @abstractmethod
-    def build_request(self, request: AIRequest, *, api_key: str, model: str) -> tuple[str, dict[str, str], dict[str, Any]]: ...
+    def build_request(
+        self, request: AIRequest, *, api_key: str, model: str
+    ) -> tuple[str, dict[str, str], dict[str, Any]]: ...
 
     @abstractmethod
-    def extract_text_and_usage(self, data: dict[str, Any]) -> tuple[str, dict[str, Any]]: ...
+    def extract_text_and_usage(
+        self, data: dict[str, Any]
+    ) -> tuple[str, dict[str, Any]]: ...
 
     def execute(self, request: AIRequest) -> AIResponse:
         api_key, model, timeout, retries = self._credentials()
-        url, headers, payload = self.build_request(request, api_key=api_key, model=model)
+        url, headers, payload = self.build_request(
+            request, api_key=api_key, model=model
+        )
         last_error: Exception | None = None
         for attempt in range(retries + 1):
             try:
-                response = self.transport.post_json(url, headers=headers, payload=payload, timeout=timeout)
+                response = self.transport.post_json(
+                    url, headers=headers, payload=payload, timeout=timeout
+                )
                 text, usage = self.extract_text_and_usage(response.data)
                 document = extract_json_object(text)
                 summary, artifacts = parse_artifact_document(document)
@@ -70,7 +82,12 @@ class BaseHTTPAIProvider(ABC):
                     action=request.action,
                     summary=summary,
                     artifacts=artifacts,
-                    metadata={"model": model, "usage": normalize_usage(usage), "cost_usd": estimate_cost_usd(self.name, model, usage), "attempts": attempt + 1},
+                    metadata={
+                        "model": model,
+                        "usage": normalize_usage(usage),
+                        "cost_usd": estimate_cost_usd(self.name, model, usage),
+                        "attempts": attempt + 1,
+                    },
                 )
             except AITransportError as error:
                 last_error = error

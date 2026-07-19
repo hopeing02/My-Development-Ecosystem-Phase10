@@ -28,12 +28,17 @@ def test_execute_task_failure_moves_task_to_failed(tmp_path: Path):
     store = TaskStore(tmp_path)
     registry = CommandRegistry()
     registry.register("task.prepare", lambda context, step: {})
-    registry.register("docs.generate", lambda context, step: (_ for _ in ()).throw(RuntimeError("boom")))
+    registry.register(
+        "docs.generate",
+        lambda context, step: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
     registry.register("change.review", lambda context, step: {})
     registry.register("change.apply", lambda context, step: {})
     registry.register("test.run", lambda context, step: {})
     registry.register("git.save", lambda context, step: {})
-    result = execute_task(load_task(write_task(tmp_path)), tmp_path, store=store, registry=registry)
+    result = execute_task(
+        load_task(write_task(tmp_path)), tmp_path, store=store, registry=registry
+    )
     assert result.status == "failed"
     assert "boom" in (result.error or "")
     assert (store.dirs.failed / "TASK-001.yaml").is_file()

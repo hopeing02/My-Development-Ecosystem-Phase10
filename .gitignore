@@ -1,16 +1,24 @@
 # Python
 __pycache__/
 *.py[cod]
+*.egg-info/
 .venv/
 venv/
 .deps/
+.test-deps/
 .black-cache/
+.incoming/
 .pytest_cache/
 .ruff_cache/
 .coverage
 htmlcov/
-.mde/
+.mde/**
+!**/.mde/
+!**/.mde/project.yaml
 logs/
+status/agent-heartbeat.json
+apps/autoknowledge-lite/data/
+apps/autoknowledge-lite/vault/
 *.bak_*
 
 # Node / Next.js

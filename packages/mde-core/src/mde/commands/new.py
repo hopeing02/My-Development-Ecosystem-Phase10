@@ -92,6 +92,18 @@ def build_template_specs(
             template_path=resolved_template_dir / "SDS-001-overview.md.tpl",
             output_path=project_docs_dir / "SDS" / "SDS-001-overview.md",
         ),
+        TemplateSpec(
+            template_path=resolved_template_dir / "project.yaml.tpl",
+            output_path=app_dir / ".mde" / "project.yaml",
+        ),
+        TemplateSpec(
+            template_path=resolved_template_dir / "mde-ci.yml.tpl",
+            output_path=app_dir / ".github" / "workflows" / "mde-ci.yml",
+        ),
+        TemplateSpec(
+            template_path=resolved_template_dir / "MDE-COLLABORATION.md.tpl",
+            output_path=app_dir / ".github" / "MDE-COLLABORATION.md",
+        ),
     ]
 
 

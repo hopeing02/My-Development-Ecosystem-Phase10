@@ -1,2 +1,5 @@
+from autoknowledge_lite import __version__
+
+
 def test_project_identity() -> None:
-    assert "autoknowledge-lite" == "autoknowledge-lite"
+    assert __version__ == "0.1.0"

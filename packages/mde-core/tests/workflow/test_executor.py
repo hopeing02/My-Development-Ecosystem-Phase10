@@ -24,8 +24,12 @@ def make_workflow(retry: int = 0):
 def test_executes_registered_handlers_in_order(tmp_path: Path) -> None:
     calls = []
     registry = CommandRegistry()
-    registry.register("sample.first", lambda context, step: calls.append(step.id) or {"value": 1})
-    registry.register("sample.second", lambda context, step: calls.append(step.id) or {"value": 2})
+    registry.register(
+        "sample.first", lambda context, step: calls.append(step.id) or {"value": 1}
+    )
+    registry.register(
+        "sample.second", lambda context, step: calls.append(step.id) or {"value": 2}
+    )
     context = WorkflowContext("sample", repository_root=tmp_path)
 
     result = execute_workflow(make_workflow(), context, registry)
@@ -48,18 +52,27 @@ def test_retries_failed_handler(tmp_path: Path) -> None:
     registry.register("sample.first", flaky)
     registry.register("sample.second", lambda context, step: {})
     result = execute_workflow(
-        make_workflow(retry=1), WorkflowContext("sample", repository_root=tmp_path), registry
+        make_workflow(retry=1),
+        WorkflowContext("sample", repository_root=tmp_path),
+        registry,
     )
     assert result.steps[0].attempts == 2
 
 
 def test_stops_on_failure(tmp_path: Path) -> None:
     registry = CommandRegistry()
-    registry.register("sample.first", lambda context, step: (_ for _ in ()).throw(RuntimeError("boom")))
+    registry.register(
+        "sample.first",
+        lambda context, step: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
     registry.register("sample.second", lambda context, step: {})
 
     with pytest.raises(WorkflowExecutionError) as captured:
-        execute_workflow(make_workflow(), WorkflowContext("sample", repository_root=tmp_path), registry)
+        execute_workflow(
+            make_workflow(),
+            WorkflowContext("sample", repository_root=tmp_path),
+            registry,
+        )
 
     assert captured.value.result.status == "failed"
     assert captured.value.result.steps[-1].step_id == "first"

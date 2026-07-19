@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from mde.plugins.builtin import AIWorkflowPlugin, CoreWorkflowPlugin, GitWorkflowPlugin, TestingWorkflowPlugin
+from mde.plugins.builtin import (
+    AIWorkflowPlugin,
+    CoreWorkflowPlugin,
+    GitWorkflowPlugin,
+    TestingWorkflowPlugin,
+)
 from mde.plugins.manager import PluginManager
 from mde.workflow.registry import CommandRegistry
 

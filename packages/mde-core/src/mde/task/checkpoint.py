@@ -58,7 +58,9 @@ class CheckpointStore:
             "updated_at": checkpoint.updated_at or utc_iso(),
             "error": checkpoint.error,
         }
-        fd, temp_name = tempfile.mkstemp(prefix=path.name, suffix=".tmp", dir=path.parent)
+        fd, temp_name = tempfile.mkstemp(
+            prefix=path.name, suffix=".tmp", dir=path.parent
+        )
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
                 json.dump(payload, handle, ensure_ascii=False, indent=2)

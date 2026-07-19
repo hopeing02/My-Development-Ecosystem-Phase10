@@ -113,7 +113,7 @@ def test_save_runs_expected_commands_without_push(
     def fake_get_current_branch(
         logger: object | None = None,
     ) -> str:
-        return "main"
+        return "feature/github-user/task-001"
 
     def fake_ensure_has_changes(
         logger: object | None = None,
@@ -134,9 +134,6 @@ def test_save_runs_expected_commands_without_push(
     save(commit_message="feat: test save", push=False)
 
     assert commands == [
-        ["uv", "run", "black", "."],
-        ["uv", "run", "ruff", "check", "."],
-        ["uv", "run", "pytest"],
         ["git", "add", "."],
         ["git", "commit", "-m", "feat: test save"],
     ]
@@ -148,7 +145,7 @@ def test_save_runs_expected_commands_with_push(monkeypatch: pytest.MonkeyPatch) 
     def fake_get_current_branch(
         logger: object | None = None,
     ) -> str:
-        return "main"
+        return "feature/github-user/task-001"
 
     def fake_ensure_has_changes(
         logger: object | None = None,
@@ -186,8 +183,8 @@ def test_save_stops_when_command_fails(monkeypatch: pytest.MonkeyPatch) -> None:
         command: list[str],
         logger: object | None = None,
     ) -> FakeResult:
-        if command == ["uv", "run", "black", "."]:
-            raise SaveError("Command failed: uv run black .")
+        if command == ["git", "add", "."]:
+            raise SaveError("Command failed: git add .")
         return FakeResult(stdout="ok")
 
     monkeypatch.setattr("tools.mde_save.get_current_branch", fake_get_current_branch)

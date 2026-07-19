@@ -12,15 +12,30 @@ from mde.sync.models import SyncPolicy
 def patch_git(monkeypatch, *, changed=False, files=()):
     calls = []
     monkeypatch.setattr("mde.sync.engine.git.ensure_repository", lambda root: root)
-    monkeypatch.setattr("mde.sync.engine.git.ensure_clean_worktree", lambda root: calls.append("clean"))
-    monkeypatch.setattr("mde.sync.engine.git.current_branch", lambda root: "feature/mobile-sync")
-    monkeypatch.setattr("mde.sync.engine.git.fetch", lambda **kwargs: calls.append("fetch"))
-    monkeypatch.setattr("mde.sync.engine.git.has_remote_changes", lambda *args, **kwargs: changed)
-    monkeypatch.setattr("mde.sync.engine.git.pull_fast_forward", lambda **kwargs: calls.append("pull"))
+    monkeypatch.setattr(
+        "mde.sync.engine.git.ensure_clean_worktree", lambda root: calls.append("clean")
+    )
+    monkeypatch.setattr(
+        "mde.sync.engine.git.current_branch", lambda root: "feature/mobile-sync"
+    )
+    monkeypatch.setattr(
+        "mde.sync.engine.git.fetch", lambda **kwargs: calls.append("fetch")
+    )
+    monkeypatch.setattr(
+        "mde.sync.engine.git.has_remote_changes", lambda *args, **kwargs: changed
+    )
+    monkeypatch.setattr(
+        "mde.sync.engine.git.pull_fast_forward", lambda **kwargs: calls.append("pull")
+    )
     monkeypatch.setattr("mde.sync.engine.git.changed_files", lambda root: tuple(files))
     monkeypatch.setattr("mde.sync.engine.git.add", lambda **kwargs: calls.append("add"))
-    monkeypatch.setattr("mde.sync.engine.git.commit", lambda *args, **kwargs: calls.append("commit") or "abc123")
-    monkeypatch.setattr("mde.sync.engine.git.push", lambda **kwargs: calls.append("push"))
+    monkeypatch.setattr(
+        "mde.sync.engine.git.commit",
+        lambda *args, **kwargs: calls.append("commit") or "abc123",
+    )
+    monkeypatch.setattr(
+        "mde.sync.engine.git.push", lambda **kwargs: calls.append("push")
+    )
     return calls
 
 
@@ -52,6 +67,7 @@ def test_sync_executes_pending_task_and_pushes_result(tmp_path: Path, monkeypatc
         active = store.claim(task)
         result = SimpleNamespace(status="completed")
         from mde.task.types import TaskResult, utc_now
+
         finished = TaskResult(
             task_id=active.task_id,
             status="completed",
@@ -113,6 +129,7 @@ task:
     def runner(task, root, store):
         active = store.claim(task)
         from mde.task.types import TaskResult, utc_now
+
         finished = TaskResult(
             task_id=active.task_id,
             status="completed",
@@ -130,3 +147,57 @@ task:
     )
     assert result.commit_hash is None
     assert "commit" not in calls
+
+
+def test_task_branch_sync_does_not_rewrite_summary_after_checkout(
+    tmp_path: Path, monkeypatch
+):
+    patch_git(monkeypatch, files=("tasks/completed/TASK-BRANCH.yaml",))
+    monkeypatch.setattr(
+        "mde.sync.engine.create_task_branch", lambda *args, **kwargs: None
+    )
+    summary_writes = []
+    monkeypatch.setattr(
+        "mde.sync.engine.write_mobile_summary",
+        lambda root: summary_writes.append(root),
+    )
+    pending = tmp_path / "tasks" / "pending"
+    pending.mkdir(parents=True)
+    (pending / "TASK-BRANCH.yaml").write_text(
+        """version: 1
+task:
+  id: TASK-BRANCH
+  type: docs
+  title: Branch summary
+  workflow: docs
+  execution:
+    auto_save: true
+    auto_push: true
+""",
+        encoding="utf-8",
+    )
+
+    def runner(task, root, store):
+        active = store.claim(task)
+        from mde.task.types import TaskResult, utc_now
+
+        finished = TaskResult(
+            task_id=active.task_id,
+            status="completed",
+            workflow=active.workflow,
+            started_at=utc_now(),
+            completed_at=utc_now(),
+        )
+        store.complete(active, finished)
+        return finished
+
+    run_mobile_sync(
+        tmp_path,
+        policy=SyncPolicy(
+            respect_task_policy=True,
+            task_branches=True,
+        ),
+        task_runner=runner,
+    )
+
+    assert summary_writes == [tmp_path.resolve()]

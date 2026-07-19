@@ -20,7 +20,9 @@ def configure_repository(root: Path) -> None:
 
 def test_git_plugins_commit_and_push_to_bare_remote(tmp_path: Path) -> None:
     remote = tmp_path / "remote.git"
-    subprocess.run(["git", "init", "--bare", str(remote)], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "init", "--bare", str(remote)], check=True, capture_output=True
+    )
     work = tmp_path / "work"
     work.mkdir()
     configure_repository(work)

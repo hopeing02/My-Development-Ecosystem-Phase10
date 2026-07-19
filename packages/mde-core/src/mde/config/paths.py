@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+
 @dataclass(frozen=True)
 class ProjectPaths:
     root: Path
@@ -18,6 +19,7 @@ class ProjectPaths:
     @property
     def inbox(self) -> Path:
         return self.root / "inbox"
+
 
 def discover_project_root(start: Path | None = None) -> Path:
     current = (start or Path.cwd()).resolve()

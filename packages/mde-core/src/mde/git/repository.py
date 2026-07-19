@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
+from mde.config.project import PROJECT_CONFIG_PATH, load_project_config
+
 
 class GitError(RuntimeError):
     """Raised when a git command fails or a safety rule is violated."""
@@ -55,6 +57,22 @@ def current_branch(repository_root: Path | None = None) -> str:
     if not branch:
         raise GitError("Detached HEAD is not supported by Mobile Sync.")
     return branch
+
+
+def ensure_branch_write_allowed(
+    repository_root: Path | None = None, *, branch: str | None = None
+) -> str:
+    root = (repository_root or Path.cwd()).resolve()
+    active_branch = branch or current_branch(root)
+    if not (root / PROJECT_CONFIG_PATH).is_file():
+        return active_branch
+    config = load_project_config(root)
+    if active_branch in config.repository.protected_branches:
+        raise GitError(
+            f"Direct commit or push to protected branch '{active_branch}' is not allowed. "
+            "Create a task branch and use a Pull Request."
+        )
+    return active_branch
 
 
 def get_local_head(repository_root: Path | None = None) -> str:
@@ -147,7 +165,9 @@ def pull(repository_root: Path | None = None) -> None:
     pull_fast_forward(repository_root=repository_root)
 
 
-def add(paths: Sequence[str] | None = None, repository_root: Path | None = None) -> None:
+def add(
+    paths: Sequence[str] | None = None, repository_root: Path | None = None
+) -> None:
     selected = tuple(paths or (".",))
     run_git("add", "--", *selected, repository_root=repository_root)
 
@@ -155,6 +175,7 @@ def add(paths: Sequence[str] | None = None, repository_root: Path | None = None)
 def commit(message: str, repository_root: Path | None = None) -> str:
     if not message.strip():
         raise GitError("Commit message must not be empty.")
+    ensure_branch_write_allowed(repository_root)
     run_git("commit", "-m", message, repository_root=repository_root)
     return get_local_head(repository_root)
 
@@ -166,4 +187,5 @@ def push(
     repository_root: Path | None = None,
 ) -> None:
     active_branch = branch or current_branch(repository_root)
+    ensure_branch_write_allowed(repository_root, branch=active_branch)
     run_git("push", remote, active_branch, repository_root=repository_root)

@@ -3,8 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
+from mde.config.project import PROJECT_CONFIG_PATH, load_project_config
 from mde.git import repository as git
-from mde.git.branches import branch_name_for_task, create_task_branch, checkout_branch
+from mde.git.branches import (
+    branch_name_for_task,
+    checkout_branch,
+    create_task_branch,
+    validate_task_branch,
+)
 from mde.sync.models import SyncPolicy, SyncResult
 from mde.task.executor import execute_task
 from mde.task.store import TaskStore
@@ -18,16 +24,24 @@ class SyncError(RuntimeError):
 TaskRunner = Callable[..., object]
 
 
-def _commit_task_if_needed(root: Path, task, policy: SyncPolicy, branch: str) -> tuple[str | None, bool]:
-    if not policy.auto_commit or (policy.respect_task_policy and not task.execution.auto_save):
+def _commit_task_if_needed(
+    root: Path, task, policy: SyncPolicy, branch: str
+) -> tuple[str | None, bool]:
+    if not policy.auto_commit or (
+        policy.respect_task_policy and not task.execution.auto_save
+    ):
         return None, False
     changes = git.changed_files(root)
     if not changes:
         return None, False
     git.add(repository_root=root)
-    commit_hash = git.commit(f"chore(task): complete {task.task_id}", repository_root=root)
+    commit_hash = git.commit(
+        f"chore(task): complete {task.task_id}", repository_root=root
+    )
     pushed = False
-    if policy.auto_push and (not policy.respect_task_policy or task.execution.auto_push):
+    if policy.auto_push and (
+        not policy.respect_task_policy or task.execution.auto_push
+    ):
         git.push(remote=policy.remote, branch=branch, repository_root=root)
         pushed = True
     return commit_hash, pushed
@@ -41,6 +55,9 @@ def run_mobile_sync(
 ) -> SyncResult:
     root = repository_root.resolve()
     active_policy = policy or SyncPolicy()
+    project_config = (
+        load_project_config(root) if (root / PROJECT_CONFIG_PATH).is_file() else None
+    )
     git.ensure_repository(root)
 
     if not active_policy.allow_dirty_worktree:
@@ -76,7 +93,12 @@ def run_mobile_sync(
         for task in store.list("pending"):
             task_branch = initial_branch
             if active_policy.task_branches:
-                task_branch = task.branch or branch_name_for_task(task.task_id, task.task_type)
+                task_branch = (
+                    validate_task_branch(task, project_config)
+                    if project_config is not None
+                    else task.branch
+                    or branch_name_for_task(task.task_id, task.task_type)
+                )
                 create_task_branch(
                     task_branch,
                     base_branch=task.base_branch or initial_branch,
@@ -89,7 +111,9 @@ def run_mobile_sync(
                 completed.append(task.task_id)
                 completed_definitions.append(task)
                 if active_policy.task_branches:
-                    commit_hash, pushed_now = _commit_task_if_needed(root, task, active_policy, task_branch)
+                    commit_hash, pushed_now = _commit_task_if_needed(
+                        root, task, active_policy, task_branch
+                    )
                     pushed = pushed or pushed_now
             else:
                 failed.append(task.task_id)
@@ -117,12 +141,19 @@ def run_mobile_sync(
             changes = git.changed_files(root)
             if changes:
                 git.add(repository_root=root)
-                commit_hash = git.commit(active_policy.commit_message, repository_root=root)
+                commit_hash = git.commit(
+                    active_policy.commit_message, repository_root=root
+                )
                 if active_policy.auto_push and task_allows_push:
-                    git.push(remote=active_policy.remote, branch=initial_branch, repository_root=root)
+                    git.push(
+                        remote=active_policy.remote,
+                        branch=initial_branch,
+                        repository_root=root,
+                    )
                     pushed = True
 
-    write_mobile_summary(root)
+    if not active_policy.task_branches:
+        write_mobile_summary(root)
     return SyncResult(
         repository_root=root,
         remote_changed=remote_changed,
