@@ -25,4 +25,18 @@ public final class SharePayloadTest {
 
         assertFalse(payload.isValid());
     }
+
+    @Test
+    public void createsClipboardPayloadFromFirstLineAndFullText() {
+        SharePayload payload = SharePayload.fromClipboard(
+                "전체 채팅 제목\n첫 번째 메시지\n두 번째 메시지 https://example.com/chat"
+        );
+
+        assertEquals("전체 채팅 제목", payload.title);
+        assertEquals(
+                "전체 채팅 제목\n첫 번째 메시지\n두 번째 메시지 https://example.com/chat",
+                payload.content
+        );
+        assertEquals("https://example.com/chat", payload.sourceUrl);
+    }
 }

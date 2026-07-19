@@ -24,6 +24,19 @@ final class SharePayload {
         return new SharePayload(title, content, sourceUrl);
     }
 
+    static SharePayload fromClipboard(CharSequence clipboardText) {
+        String content = clipboardText == null ? "" : clipboardText.toString().trim();
+        int lineBreak = content.indexOf('\n');
+        String firstLine = (lineBreak >= 0 ? content.substring(0, lineBreak) : content).trim();
+        String title = firstLine.startsWith("http://") || firstLine.startsWith("https://")
+                ? "클립보드 메모"
+                : firstLine;
+        if (title.length() > 80) {
+            title = title.substring(0, 80);
+        }
+        return from(title, content);
+    }
+
     boolean isValid() {
         return !content.trim().isEmpty();
     }
