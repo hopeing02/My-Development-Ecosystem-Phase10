@@ -16,4 +16,5 @@
 - Android 공유 제목·본문·URL 추출 단위 테스트
 - 공유 접수 후 분석·Markdown 자동 처리 통합 테스트
 - URL 전용 공유의 본문 보강 및 ChatGPT·일반 HTML 추출 테스트
+- 안전한 Obsidian 파일명, UTF-8 내용, API·자동 파이프라인 파일 저장 테스트
 - pytest 임시 디렉터리를 사용한 사용자 데이터 격리

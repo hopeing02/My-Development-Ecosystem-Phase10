@@ -9,11 +9,18 @@ from fastapi.testclient import TestClient
 from autoknowledge_lite.ai import AnalysisError
 from autoknowledge_lite.api import create_app
 from autoknowledge_lite.models import ShareRecord
+from autoknowledge_lite.obsidian import ObsidianNoteStore
 from autoknowledge_lite.store import JsonShareStore, ShareStoreError
 
 
 def client_for(tmp_path: Path) -> TestClient:
-    return TestClient(create_app(JsonShareStore(tmp_path / "jobs"), auto_process=False))
+    return TestClient(
+        create_app(
+            JsonShareStore(tmp_path / "jobs"),
+            auto_process=False,
+            note_store=ObsidianNoteStore(tmp_path / "vault"),
+        )
+    )
 
 
 def test_status_reports_service_version(tmp_path: Path) -> None:
@@ -160,6 +167,10 @@ def test_markdown_renders_and_persists_analyzed_job(tmp_path: Path) -> None:
         (tmp_path / "jobs" / f"{accepted['job_id']}.json").read_text(encoding="utf-8")
     )
     assert stored["markdown"] == markdown
+    note_path = Path(response.json()["note_path"])
+    assert note_path.is_file()
+    assert note_path.read_text(encoding="utf-8") == markdown
+    assert stored["note_path"] == str(note_path)
 
 
 def test_markdown_requires_analysis(tmp_path: Path) -> None:
@@ -174,7 +185,13 @@ def test_markdown_requires_analysis(tmp_path: Path) -> None:
 
 def test_share_automatically_analyzes_and_renders_markdown(tmp_path: Path) -> None:
     store = JsonShareStore(tmp_path / "jobs")
-    client = TestClient(create_app(store, auto_process=True))
+    client = TestClient(
+        create_app(
+            store,
+            auto_process=True,
+            note_store=ObsidianNoteStore(tmp_path / "vault"),
+        )
+    )
 
     response = client.post(
         "/v1/share",
@@ -186,6 +203,8 @@ def test_share_automatically_analyzes_and_renders_markdown(tmp_path: Path) -> No
     assert stored.status == "processed"
     assert stored.analysis is not None
     assert stored.markdown is not None
+    assert stored.note_path is not None
+    assert Path(stored.note_path).is_file()
     assert "# Automatic Note" in stored.markdown
 
 
@@ -199,7 +218,12 @@ def test_share_fetches_url_only_content_before_automatic_analysis(
 
     store = JsonShareStore(tmp_path / "jobs")
     client = TestClient(
-        create_app(store, auto_process=True, content_fetcher=FakeFetcher())
+        create_app(
+            store,
+            auto_process=True,
+            content_fetcher=FakeFetcher(),
+            note_store=ObsidianNoteStore(tmp_path / "vault"),
+        )
     )
 
     response = client.post(

@@ -25,7 +25,8 @@
 - [x] API 단위 테스트
 - [x] 실제 OpenAI·Claude 제공자 연결
 - [x] `POST /v1/markdown` Markdown 생성 및 작업 저장
-- [ ] Obsidian 저장과 Git 동기화
+- [x] Obsidian Vault 실제 Markdown 파일 저장
+- [ ] Git 동기화
 
 ## 4. 문서 연결
 

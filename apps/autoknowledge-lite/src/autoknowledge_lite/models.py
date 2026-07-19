@@ -56,6 +56,7 @@ class ShareRecord(BaseModel):
     processed_at: datetime | None = None
     analysis: KnowledgeAnalysis | None = None
     markdown: str | None = None
+    note_path: str | None = None
 
 
 class ShareAccepted(BaseModel):
@@ -88,6 +89,7 @@ class MarkdownRequest(BaseModel):
 class MarkdownResult(BaseModel):
     job_id: str
     markdown: str
+    note_path: str
 
 
 class StatusResponse(BaseModel):

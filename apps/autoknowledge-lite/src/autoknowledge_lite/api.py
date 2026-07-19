@@ -30,6 +30,7 @@ from autoknowledge_lite.models import (
     ShareRequest,
     StatusResponse,
 )
+from autoknowledge_lite.obsidian import ObsidianNoteStore, ObsidianStoreError
 from autoknowledge_lite.markdown import MarkdownRenderError, render_markdown
 from autoknowledge_lite.store import (
     JsonShareStore,
@@ -46,12 +47,14 @@ def create_app(
     analyzer: KnowledgeAnalyzer | None = None,
     auto_process: bool | None = None,
     content_fetcher: ContentFetcher | None = None,
+    note_store: ObsidianNoteStore | None = None,
 ) -> FastAPI:
     """Create an API application with an injectable persistence boundary."""
 
     share_store = store or JsonShareStore()
     knowledge_analyzer = analyzer or analyzer_from_environment()
     web_content_fetcher = content_fetcher or HttpContentFetcher()
+    obsidian_store = note_store or ObsidianNoteStore()
     automatic_processing = (
         _environment_flag("AUTOKNOWLEDGE_AUTO_PROCESS", default=True)
         if auto_process is None
@@ -116,11 +119,17 @@ def create_app(
                 }
             )
             markdown = render_markdown(processed)
-            share_store.update(processed.model_copy(update={"markdown": markdown}))
+            note_path = obsidian_store.save(processed, markdown)
+            share_store.update(
+                processed.model_copy(
+                    update={"markdown": markdown, "note_path": str(note_path)}
+                )
+            )
             LOGGER.info("Automatically processed share job %s", job_id)
         except (
             AnalysisError,
             MarkdownRenderError,
+            ObsidianStoreError,
             ShareNotFoundError,
             ShareStoreError,
         ):
@@ -214,14 +223,23 @@ def create_app(
             ) from error
 
         try:
-            share_store.update(record.model_copy(update={"markdown": markdown}))
-        except ShareStoreError as error:
+            note_path = obsidian_store.save(record, markdown)
+            share_store.update(
+                record.model_copy(
+                    update={"markdown": markdown, "note_path": str(note_path)}
+                )
+            )
+        except (ObsidianStoreError, ShareStoreError) as error:
             LOGGER.exception("Failed to save Markdown for share job %s", job_id)
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Unable to save Markdown document.",
             ) from error
-        return MarkdownResult(job_id=job_id, markdown=markdown)
+        return MarkdownResult(
+            job_id=job_id,
+            markdown=markdown,
+            note_path=str(note_path),
+        )
 
     return application
 

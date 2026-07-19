@@ -23,7 +23,9 @@
 
 ## POST `/v1/markdown`
 
-분석된 작업을 YAML 메타데이터가 포함된 Markdown으로 변환하고 작업 JSON에 저장합니다. 아직 분석되지 않은 작업은 `409`를 반환합니다.
+분석된 작업을 YAML 메타데이터가 포함된 Markdown으로 변환해 작업 JSON과 Obsidian Vault의 실제 `.md` 파일에 저장합니다. 응답의 `note_path`에서 생성된 파일 경로를 확인할 수 있습니다. 아직 분석되지 않은 작업은 `409`를 반환합니다.
+
+기본 Vault는 `apps/autoknowledge-lite/vault/`이며 노트는 `AutoKnowledge/` 하위에 생성됩니다. 기존 Vault를 사용하려면 `AUTOKNOWLEDGE_VAULT_DIR`에 Vault 최상위 경로를 설정합니다.
 
 ## AI 제공자 설정
 
