@@ -17,6 +17,7 @@ from mde.commands.apply import apply_patch, apply_task
 # from tools.mde_new import AVAILABLE_TEMPLATES, create_project
 from mde.commands.new import create_project
 from mde.commands.save import save
+from mde.commands.project import run_project_phase
 from mde.workflow.executor import WorkflowExecutionError, execute_workflow
 from mde.workflow.loader import list_workflows, load_named_workflow
 from mde.workflow.models import WorkflowContext
@@ -41,6 +42,7 @@ AVAILABLE_COMMANDS = [
     "inbox",
     #    "doctor",
     "docs",
+    "test",
     "build",
     "release",
     "obsidian",
@@ -124,6 +126,9 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Commit locally without pushing to GitHub.",
     )
+
+    subparsers.add_parser("test", help="Run test commands from .mde/project.yaml.")
+    subparsers.add_parser("build", help="Run build commands from .mde/project.yaml.")
 
     agent_parser = subparsers.add_parser(
         "agent",
@@ -293,6 +298,8 @@ def build_parser() -> argparse.ArgumentParser:
         "plugin",
         "ai",
         "inbox",
+        "test",
+        "build",
         # "doctor",
     }
 
@@ -615,6 +622,15 @@ def main(argv: list[str] | None = None) -> int:
                 push=not args.no_push,
             )
             print("MDE save completed.")
+            return 0
+
+        if args.command in {"test", "build"}:
+            results = run_project_phase(Path.cwd(), args.command)
+            for result in results:
+                print(f"PASSED: {' '.join(result.command)}")
+                if result.output:
+                    print(result.output)
+            print(f"Project {args.command} completed: {len(results)} command(s).")
             return 0
 
         if args.command == "workflow":

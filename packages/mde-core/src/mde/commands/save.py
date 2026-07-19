@@ -6,6 +6,8 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from mde.git.repository import GitError, ensure_branch_write_allowed
+
 LOG_DIR = Path("logs")
 LOG_FILE = LOG_DIR / "save.log"
 
@@ -90,6 +92,10 @@ def save(commit_message: str, push: bool) -> None:
     logger.info("MDE save started.")
     try:
         branch = get_current_branch(logger=logger)
+        try:
+            ensure_branch_write_allowed(Path.cwd(), branch=branch)
+        except GitError as error:
+            raise SaveError(str(error)) from error
         changed_files = ensure_has_changes(logger=logger)
         print(f"Current branch: {branch}")
         print(f"Changed files: {len(changed_files)}")

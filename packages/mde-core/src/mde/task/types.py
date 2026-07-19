@@ -29,6 +29,7 @@ class TaskDefinition:
     title: str
     description: str
     workflow: str
+    assignee: str | None = None
     source: str = "unknown"
     branch: str | None = None
     base_branch: str | None = None

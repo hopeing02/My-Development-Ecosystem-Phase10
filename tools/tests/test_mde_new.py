@@ -31,6 +31,16 @@ def create_test_templates(root: Path) -> None:
         "# SDS-001 Overview\n\nProject: {{PROJECT_TITLE}}\n",
         encoding="utf-8",
     )
+    (template_dir / "project.yaml.tpl").write_text(
+        "version: 1\nproject:\n  id: {{PROJECT_NAME}}\n  name: {{PROJECT_TITLE}}\n",
+        encoding="utf-8",
+    )
+    (template_dir / "mde-ci.yml.tpl").write_text(
+        "name: {{PROJECT_TITLE}} CI\n", encoding="utf-8"
+    )
+    (template_dir / "MDE-COLLABORATION.md.tpl").write_text(
+        "# {{PROJECT_TITLE}} collaboration\n", encoding="utf-8"
+    )
 
 
 def test_validate_project_name_accepts_valid_name() -> None:
@@ -121,19 +131,29 @@ def test_create_project_creates_directories_and_files(tmp_path: Path) -> None:
     docs_dir = tmp_path / "docs" / "15_projects" / "autoknowledge-lite"
     readme_path = app_dir / "README.md"
     sds_path = docs_dir / "SDS" / "SDS-001-overview.md"
+    config_path = app_dir / ".mde" / "project.yaml"
+    ci_path = app_dir / ".github" / "workflows" / "mde-ci.yml"
+    collaboration_path = app_dir / ".github" / "MDE-COLLABORATION.md"
 
     assert created_paths == [
         app_dir,
         docs_dir,
         readme_path,
         sds_path,
+        config_path,
+        ci_path,
+        collaboration_path,
     ]
 
     assert readme_path.is_file()
     assert sds_path.is_file()
+    assert config_path.is_file()
+    assert ci_path.is_file()
+    assert collaboration_path.is_file()
 
     assert "# Autoknowledge Lite" in readme_path.read_text(encoding="utf-8")
     assert "# SDS-001 Overview" in sds_path.read_text(encoding="utf-8")
+    assert "id: autoknowledge-lite" in config_path.read_text(encoding="utf-8")
 
 
 def test_create_project_fails_if_app_path_exists(tmp_path: Path) -> None:

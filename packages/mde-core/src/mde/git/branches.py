@@ -2,8 +2,17 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
+from mde.config.project import ProjectConfig
 from mde.git.repository import current_branch, run_git
+
+if TYPE_CHECKING:
+    from mde.task.types import TaskDefinition
+
+
+class BranchPolicyError(RuntimeError):
+    """Raised when a task does not follow the configured branch policy."""
 
 
 def _slug(value: str) -> str:
@@ -11,8 +20,61 @@ def _slug(value: str) -> str:
     return cleaned.lower() or "task"
 
 
-def branch_name_for_task(task_id: str, task_type: str = "task") -> str:
-    return f"{_slug(task_type)}/{_slug(task_id)}"
+def branch_name_for_task(
+    task_id: str,
+    task_type: str = "task",
+    *,
+    assignee: str | None = None,
+    pattern: str | None = None,
+) -> str:
+    if pattern is None:
+        return (
+            f"{_slug(task_type)}/{_slug(assignee)}/{_slug(task_id)}"
+            if assignee
+            else f"{_slug(task_type)}/{_slug(task_id)}"
+        )
+    if not assignee:
+        raise BranchPolicyError("Task assignee is required by the project policy.")
+    return pattern.format(
+        type=_slug(task_type),
+        assignee=_slug(assignee),
+        task_id=_slug(task_id),
+    )
+
+
+def expected_branch_for_task(task: TaskDefinition, config: ProjectConfig) -> str:
+    return branch_name_for_task(
+        task.task_id,
+        task.task_type,
+        assignee=task.assignee,
+        pattern=config.repository.branch_pattern,
+    )
+
+
+def validate_task_branch(
+    task: TaskDefinition,
+    config: ProjectConfig,
+    *,
+    active_branch: str | None = None,
+) -> str:
+    expected = expected_branch_for_task(task, config)
+    if task.branch is not None and task.branch != expected:
+        raise BranchPolicyError(
+            f"Task branch mismatch: expected '{expected}', configured '{task.branch}'."
+        )
+    if active_branch is not None and active_branch != expected:
+        raise BranchPolicyError(
+            f"Active branch mismatch: expected '{expected}', active '{active_branch}'."
+        )
+    if (
+        task.base_branch is not None
+        and task.base_branch != config.repository.default_branch
+    ):
+        raise BranchPolicyError(
+            "Task base branch mismatch: expected "
+            f"'{config.repository.default_branch}', configured '{task.base_branch}'."
+        )
+    return expected
 
 
 def local_branch_exists(branch: str, repository_root: Path) -> bool:

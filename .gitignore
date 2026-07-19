@@ -12,7 +12,9 @@ venv/
 .ruff_cache/
 .coverage
 htmlcov/
-.mde/
+.mde/**
+!**/.mde/
+!**/.mde/project.yaml
 logs/
 status/agent-heartbeat.json
 apps/autoknowledge-lite/data/

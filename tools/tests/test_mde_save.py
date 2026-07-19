@@ -113,7 +113,7 @@ def test_save_runs_expected_commands_without_push(
     def fake_get_current_branch(
         logger: object | None = None,
     ) -> str:
-        return "main"
+        return "feature/github-user/task-001"
 
     def fake_ensure_has_changes(
         logger: object | None = None,
@@ -145,7 +145,7 @@ def test_save_runs_expected_commands_with_push(monkeypatch: pytest.MonkeyPatch) 
     def fake_get_current_branch(
         logger: object | None = None,
     ) -> str:
-        return "main"
+        return "feature/github-user/task-001"
 
     def fake_ensure_has_changes(
         logger: object | None = None,

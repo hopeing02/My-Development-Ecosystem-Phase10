@@ -4,6 +4,9 @@ from dataclasses import replace
 from pathlib import Path
 
 from mde.automation.fix_loop import execute_workflow_with_fix_loop
+from mde.config.project import PROJECT_CONFIG_PATH, load_project_config
+from mde.git.branches import validate_task_branch
+from mde.git.repository import current_branch
 from mde.plugins.runtime import create_runtime_registry
 from mde.task.checkpoint import CheckpointStore, TaskCheckpoint, utc_iso
 from mde.task.concurrency import TaskExecutionLock
@@ -41,6 +44,12 @@ def execute_task(
     resume: bool = True,
 ) -> TaskResult:
     root = repository_root.resolve()
+    if (root / PROJECT_CONFIG_PATH).is_file():
+        validate_task_branch(
+            task,
+            load_project_config(root),
+            active_branch=current_branch(root),
+        )
     task_store = store or TaskStore(root)
     checkpoints = CheckpointStore(root)
 

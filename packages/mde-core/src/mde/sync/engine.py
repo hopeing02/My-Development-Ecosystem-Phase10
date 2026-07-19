@@ -3,8 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
+from mde.config.project import PROJECT_CONFIG_PATH, load_project_config
 from mde.git import repository as git
-from mde.git.branches import branch_name_for_task, create_task_branch, checkout_branch
+from mde.git.branches import (
+    branch_name_for_task,
+    checkout_branch,
+    create_task_branch,
+    validate_task_branch,
+)
 from mde.sync.models import SyncPolicy, SyncResult
 from mde.task.executor import execute_task
 from mde.task.store import TaskStore
@@ -49,6 +55,9 @@ def run_mobile_sync(
 ) -> SyncResult:
     root = repository_root.resolve()
     active_policy = policy or SyncPolicy()
+    project_config = (
+        load_project_config(root) if (root / PROJECT_CONFIG_PATH).is_file() else None
+    )
     git.ensure_repository(root)
 
     if not active_policy.allow_dirty_worktree:
@@ -84,8 +93,11 @@ def run_mobile_sync(
         for task in store.list("pending"):
             task_branch = initial_branch
             if active_policy.task_branches:
-                task_branch = task.branch or branch_name_for_task(
-                    task.task_id, task.task_type
+                task_branch = (
+                    validate_task_branch(task, project_config)
+                    if project_config is not None
+                    else task.branch
+                    or branch_name_for_task(task.task_id, task.task_type)
                 )
                 create_task_branch(
                     task_branch,
