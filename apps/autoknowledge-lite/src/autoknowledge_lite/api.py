@@ -20,6 +20,8 @@ from autoknowledge_lite.content import (
     HttpContentFetcher,
     should_fetch_content,
 )
+from autoknowledge_lite.git_sync import GitNoteSync, GitSyncError, NoteSync
+from autoknowledge_lite.markdown import MarkdownRenderError, render_markdown
 from autoknowledge_lite.models import (
     MarkdownRequest,
     MarkdownResult,
@@ -31,7 +33,6 @@ from autoknowledge_lite.models import (
     StatusResponse,
 )
 from autoknowledge_lite.obsidian import ObsidianNoteStore, ObsidianStoreError
-from autoknowledge_lite.markdown import MarkdownRenderError, render_markdown
 from autoknowledge_lite.store import (
     JsonShareStore,
     ShareNotFoundError,
@@ -48,6 +49,7 @@ def create_app(
     auto_process: bool | None = None,
     content_fetcher: ContentFetcher | None = None,
     note_store: ObsidianNoteStore | None = None,
+    git_sync: NoteSync | None = None,
 ) -> FastAPI:
     """Create an API application with an injectable persistence boundary."""
 
@@ -55,6 +57,7 @@ def create_app(
     knowledge_analyzer = analyzer or analyzer_from_environment()
     web_content_fetcher = content_fetcher or HttpContentFetcher()
     obsidian_store = note_store or ObsidianNoteStore()
+    note_sync = git_sync or GitNoteSync(obsidian_store.notes_dir.parent)
     automatic_processing = (
         _environment_flag("AUTOKNOWLEDGE_AUTO_PROCESS", default=True)
         if auto_process is None
@@ -125,9 +128,11 @@ def create_app(
                     update={"markdown": markdown, "note_path": str(note_path)}
                 )
             )
+            note_sync.sync(note_path)
             LOGGER.info("Automatically processed share job %s", job_id)
         except (
             AnalysisError,
+            GitSyncError,
             MarkdownRenderError,
             ObsidianStoreError,
             ShareNotFoundError,
@@ -235,6 +240,10 @@ def create_app(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Unable to save Markdown document.",
             ) from error
+        try:
+            note_sync.sync(note_path)
+        except GitSyncError:
+            LOGGER.exception("Git synchronization failed for share job %s", job_id)
         return MarkdownResult(
             job_id=job_id,
             markdown=markdown,

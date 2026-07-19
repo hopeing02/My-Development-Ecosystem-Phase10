@@ -184,12 +184,21 @@ def test_markdown_requires_analysis(tmp_path: Path) -> None:
 
 
 def test_share_automatically_analyzes_and_renders_markdown(tmp_path: Path) -> None:
+    class RecordingSync:
+        def __init__(self) -> None:
+            self.paths: list[Path] = []
+
+        def sync(self, note_path: Path) -> None:
+            self.paths.append(note_path)
+
     store = JsonShareStore(tmp_path / "jobs")
+    git_sync = RecordingSync()
     client = TestClient(
         create_app(
             store,
             auto_process=True,
             note_store=ObsidianNoteStore(tmp_path / "vault"),
+            git_sync=git_sync,
         )
     )
 
@@ -206,6 +215,7 @@ def test_share_automatically_analyzes_and_renders_markdown(tmp_path: Path) -> No
     assert stored.note_path is not None
     assert Path(stored.note_path).is_file()
     assert "# Automatic Note" in stored.markdown
+    assert git_sync.paths == [Path(stored.note_path)]
 
 
 def test_share_fetches_url_only_content_before_automatic_analysis(

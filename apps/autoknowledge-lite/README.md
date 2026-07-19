@@ -1,5 +1,20 @@
 # autoknowledge-lite
 
+## GitHub automatic synchronization
+
+The local Vault can be connected to a private GitHub repository. After the
+repository is cloned or initialized, enable synchronization before starting the
+server:
+
+```powershell
+$env:AUTOKNOWLEDGE_VAULT_DIR = "C:\\My-Development-Ecosystem-Phase10\\apps\\autoknowledge-lite\\vault"
+$env:AUTOKNOWLEDGE_GIT_SYNC = "true"
+$env:AUTOKNOWLEDGE_GIT_BRANCH = "main"
+```
+
+Only the generated Markdown note is staged. API keys, environment files, and
+raw job JSON are not added to the Vault repository.
+
 - 유형: `python`
 - 프로젝트 문서: [`docs/15_projects/autoknowledge-lite/`](../../docs/15_projects/autoknowledge-lite/)
 

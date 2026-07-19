@@ -16,6 +16,7 @@ htmlcov/
 logs/
 status/agent-heartbeat.json
 apps/autoknowledge-lite/data/
+apps/autoknowledge-lite/vault/
 *.bak_*
 
 # Node / Next.js
