@@ -27,6 +27,15 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install uv
+        run: python -m pip install uv
+
       - name: Install MDE Core
         run: python -m pip install ./_mde-core
 
