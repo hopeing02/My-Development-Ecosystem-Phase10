@@ -26,6 +26,8 @@ from mde.task.executor import execute_task
 from mde.task.store import TaskStore
 from mde.sync import SyncPolicy, run_mobile_sync
 from mde.git import repository as git_repository
+from mde.knowledge.cli import register_parser as register_knowledge_parser
+from mde.knowledge.cli import run as run_knowledge_command
 
 AVAILABLE_COMMANDS = [
     "new",
@@ -39,6 +41,7 @@ AVAILABLE_COMMANDS = [
     "plugin",
     "ai",
     "inbox",
+    "knowledge",
     #    "doctor",
     "docs",
     "build",
@@ -276,6 +279,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="List legacy inbox patches.",
     )
 
+    register_knowledge_parser(subparsers)
+
     #    subparsers.add_parser(
     #        "doctor",
     #        help="Check the MDE development environment.",
@@ -293,6 +298,7 @@ def build_parser() -> argparse.ArgumentParser:
         "plugin",
         "ai",
         "inbox",
+        "knowledge",
         # "doctor",
     }
 
@@ -494,7 +500,7 @@ def run_ai_command(args: argparse.Namespace) -> int:
             if not base_url.startswith(("http://", "https://")):
                 raise AIConfigurationError("MDE_LOCAL_BASE_URL must be an HTTP(S) URL.")
             model = os.environ.get("MDE_LOCAL_MODEL", "local-model")
-            print(f"AI provider ready: local")
+            print("AI provider ready: local")
             print(f"Model: {model}")
             print(f"Base URL: {base_url}")
             return 0
@@ -629,6 +635,8 @@ def main(argv: list[str] | None = None) -> int:
             return run_plugin_command(args)
         if args.command == "ai":
             return run_ai_command(args)
+        if args.command == "knowledge":
+            return run_knowledge_command(args)
 
         if args.command == "agent":
             if args.once:

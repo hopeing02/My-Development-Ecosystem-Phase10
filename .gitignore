@@ -10,6 +10,9 @@ venv/
 .coverage
 htmlcov/
 .mde/
+*.db
+*.db-shm
+*.db-wal
 logs/
 *.bak_*
 
