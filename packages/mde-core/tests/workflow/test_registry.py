@@ -5,7 +5,10 @@ from mde.workflow.registry import CommandNotRegisteredError, CommandRegistry
 
 def test_registers_and_resolves_handler() -> None:
     registry = CommandRegistry()
-    handler = lambda context, step: None
+
+    def handler(context, step):
+        return None
+
     registry.register("sample.run", handler)
     assert registry.get("sample.run") is handler
 
