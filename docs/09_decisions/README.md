@@ -11,3 +11,4 @@
 - `ADR-003-knowledge-user-local-storage.md` — Knowledge 사용자 전역 저장과 Source 격리
 - `ADR-004-knowledge-audit-log-privacy.md` — Knowledge 감사 로그 개인정보 보호
 - `ADR-005-knowledge-audit-retention.md` — Knowledge 감사 로그 30일 보존
+- `ADR-006-managed-documentation-sync.md` — 관리 구간 기반 MDE 문서 동기화

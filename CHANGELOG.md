@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Added `mde docs check` and approval-based managed CLI reference updates.
+- Added the MDE-wide user guide with generated implemented/reserved command status.
 - Added Knowledge Plugin 1.2.0 with a safe 30-day audit log retention policy.
 - Added Knowledge Plugin 1.1.0 privacy-safe, user-local audit logs for Source lifecycle and scan events.
 - Added MDE Knowledge Plugin v1 with source-scoped local Markdown indexing.

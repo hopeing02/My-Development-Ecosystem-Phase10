@@ -8,3 +8,4 @@
 
 - `QA-001.md` — 공통 품질 기준
 - `QA-002-knowledge-plugin.md` — Knowledge Plugin 품질 결과
+- `QA-003-managed-documentation-sync.md` — MDE 문서 동기화 품질 결과

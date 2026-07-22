@@ -17,6 +17,13 @@ from mde.commands.apply import apply_patch, apply_task
 # from tools.mde_new import AVAILABLE_TEMPLATES, create_project
 from mde.commands.new import create_project
 from mde.commands.save import save
+from mde.documentation import (
+    apply_update as apply_documentation_update,
+    check_document,
+    find_documentation_root,
+    preview_update,
+    target_path as documentation_target_path,
+)
 from mde.workflow.executor import WorkflowExecutionError, execute_workflow
 from mde.workflow.loader import list_workflows, load_named_workflow
 from mde.workflow.models import WorkflowContext
@@ -49,6 +56,22 @@ AVAILABLE_COMMANDS = [
     "obsidian",
     "deploy",
 ]
+
+IMPLEMENTED_COMMANDS = frozenset(
+    {
+        "new",
+        "apply",
+        "save",
+        "agent",
+        "workflow",
+        "task",
+        "sync",
+        "plugin",
+        "ai",
+        "knowledge",
+        "docs",
+    }
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -281,29 +304,36 @@ def build_parser() -> argparse.ArgumentParser:
 
     register_knowledge_parser(subparsers)
 
+    docs_parser = subparsers.add_parser(
+        "docs",
+        help="Check and safely update managed MDE documentation.",
+    )
+    docs_subparsers = docs_parser.add_subparsers(dest="docs_action")
+    docs_check_parser = docs_subparsers.add_parser(
+        "check", help="Check managed documentation against the live CLI."
+    )
+    docs_check_parser.add_argument(
+        "--target", choices=("mde-user-guide",), default="mde-user-guide"
+    )
+    docs_update_parser = docs_subparsers.add_parser(
+        "update", help="Preview or apply a managed documentation update."
+    )
+    docs_update_parser.add_argument(
+        "--target", choices=("mde-user-guide",), default="mde-user-guide"
+    )
+    docs_update_parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Apply the generated change. Without this flag only a diff is shown.",
+    )
+
     #    subparsers.add_parser(
     #        "doctor",
     #        help="Check the MDE development environment.",
     #    )
 
-    implemented_commands = {
-        "new",
-        "generate",
-        "apply",
-        "save",
-        "agent",
-        "workflow",
-        "task",
-        "sync",
-        "plugin",
-        "ai",
-        "inbox",
-        "knowledge",
-        # "doctor",
-    }
-
     for command in AVAILABLE_COMMANDS:
-        if command in implemented_commands:
+        if command in subparsers.choices:
             continue
 
         subparsers.add_parser(
@@ -317,6 +347,35 @@ def build_parser() -> argparse.ArgumentParser:
 def run_reserved_command(command: str) -> int:
     print(f"'{command}' command is reserved but not implemented yet.")
     return 2
+
+
+def run_docs_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    if args.docs_action not in {"check", "update"}:
+        print("Use docs check or docs update [--apply].")
+        return 2
+
+    root = find_documentation_root()
+    path = documentation_target_path(root, args.target)
+    if args.docs_action == "check":
+        if check_document(path, parser, IMPLEMENTED_COMMANDS):
+            print(f"MDE documentation is up to date: {path}")
+            return 0
+        print(f"MDE documentation is out of date: {path}")
+        print("Run: uv run mde docs update --apply")
+        return 1
+
+    expected, diff = preview_update(path, parser, IMPLEMENTED_COMMANDS)
+    if not diff:
+        print(f"MDE documentation is already up to date: {path}")
+        return 0
+    if not args.apply:
+        print(diff, end="")
+        print("Preview only. Re-run with --apply to update the managed section.")
+        return 0
+    apply_documentation_update(path, expected)
+    print(f"MDE documentation updated: {path}")
+    print("Only the managed CLI reference section was changed.")
+    return 0
 
 
 def run_apply_command(args: argparse.Namespace) -> int:
@@ -637,6 +696,8 @@ def main(argv: list[str] | None = None) -> int:
             return run_ai_command(args)
         if args.command == "knowledge":
             return run_knowledge_command(args)
+        if args.command == "docs":
+            return run_docs_command(args, parser)
 
         if args.command == "agent":
             if args.once:

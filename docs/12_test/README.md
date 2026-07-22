@@ -11,3 +11,4 @@
 - `TEST-003-knowledge-audit-log.md` — Knowledge 안전 감사 로그 검증
 - `TEST-004-uv-runtime-recovery.md` — uv 실행 환경 복구 검증
 - `TEST-005-knowledge-audit-retention.md` — Knowledge 감사 로그 30일 보존 검증
+- `TEST-006-managed-documentation-sync.md` — MDE 문서 동기화 검증
