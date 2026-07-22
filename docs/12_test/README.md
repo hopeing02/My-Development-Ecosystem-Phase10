@@ -13,3 +13,4 @@
 - `TEST-005-knowledge-audit-retention.md` — Knowledge 감사 로그 30일 보존 검증
 - `TEST-006-managed-documentation-sync.md` — MDE 문서 동기화 검증
 - `TEST-007-autoknowledge-vault-source.md` — AutoKnowledge 개인 Vault Source 연결 검증
+- `TEST-008-personal-vault-external-migration.md` — 개인 Vault 외부 경로 이전 검증
