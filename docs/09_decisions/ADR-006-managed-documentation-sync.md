@@ -12,7 +12,7 @@ MDE CLI가 변경되면 전체 사용자 가이드의 명령과 옵션이 실제
 문서 유지관리는 Knowledge Plugin이 아닌 독립적인 MDE `docs` 명령으로 제공한다.
 
 - 실제 `argparse` 정의를 CLI 참조의 단일 기준으로 사용한다.
-- `CMD-004-mde-user-guide.md`의 명시적인 시작·종료 표식 사이만 자동 관리한다.
+- `CMD-004-mde-user-guide.md`와 `CMD-003-mde-knowledge-plugin-user-guide.md`의 명시적인 시작·종료 표식 사이만 target별로 자동 관리한다.
 - `mde docs check`는 불일치를 읽기 전용으로 확인한다.
 - `mde docs update`는 unified diff만 출력한다.
 - `mde docs update --apply`가 있을 때만 관리 구간을 수정한다.

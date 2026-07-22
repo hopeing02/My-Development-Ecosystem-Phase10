@@ -6,6 +6,7 @@
 ## 품질 기준
 
 - 실제 CLI 정의에서 명령과 옵션을 생성한다.
+- MDE 전체 가이드와 Knowledge 상세 가이드를 독립적인 target으로 관리한다.
 - 구현 명령과 예약 명령을 구분한다.
 - 기본 update는 파일을 수정하지 않는다.
 - `--apply`가 있을 때만 관리 구간을 수정한다.
@@ -16,8 +17,8 @@
 
 ## 결과
 
-- 전용 및 CLI 테스트: 9 passed
-- 전체 회귀 테스트: 142 passed
+- 전용 및 CLI 테스트: 11 passed
+- 전체 회귀 테스트: 144 passed
 - Ruff: passed
 - Ruff formatter check: passed
 - Type checker: 저장소에 설정되지 않음

@@ -156,6 +156,14 @@ uv run mde docs update
 uv run mde docs update --apply
 ```
 
+Knowledge Plugin 상세 가이드도 별도 target으로 검사하고 갱신할 수 있다.
+
+```powershell
+uv run mde docs check --target knowledge-guide
+uv run mde docs update --target knowledge-guide
+uv run mde docs update --target knowledge-guide --apply
+```
+
 자동 변경 범위는 아래 표식 사이로 제한된다. 설명 본문, 다른 문서, 원본 자료, Git 상태는 변경하지 않는다.
 
 <!-- MDE-DOCS:CLI-REFERENCE:START -->
@@ -242,8 +250,8 @@ uv run mde docs update --apply
 
 ### `mde docs`
 
-- `mde docs check [-h] [--target {mde-user-guide}]`
-- `mde docs update [-h] [--target {mde-user-guide}] [--apply]`
+- `mde docs check [-h] [--target {mde-user-guide,knowledge-guide}]`
+- `mde docs update [-h] [--target {mde-user-guide,knowledge-guide}] [--apply]`
 <!-- MDE-DOCS:CLI-REFERENCE:END -->
 
 ## 14. 예약 명령

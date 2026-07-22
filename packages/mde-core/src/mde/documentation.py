@@ -10,7 +10,11 @@ START_MARKER = "<!-- MDE-DOCS:CLI-REFERENCE:START -->"
 END_MARKER = "<!-- MDE-DOCS:CLI-REFERENCE:END -->"
 TARGET_PATHS = {
     "mde-user-guide": Path("docs/05_commands/CMD-004-mde-user-guide.md"),
+    "knowledge-guide": Path(
+        "docs/05_commands/CMD-003-mde-knowledge-plugin-user-guide.md"
+    ),
 }
+TARGET_NAMES = tuple(TARGET_PATHS)
 
 
 class DocumentationError(RuntimeError):
@@ -73,6 +77,33 @@ def render_cli_reference(
     return "\n".join(lines)
 
 
+def render_target_reference(
+    parser: argparse.ArgumentParser,
+    implemented_commands: set[str] | frozenset[str],
+    target: str,
+) -> str:
+    """Render the managed reference for one supported document target."""
+
+    if target == "mde-user-guide":
+        return render_cli_reference(parser, implemented_commands)
+    if target == "knowledge-guide":
+        subcommands = _subparsers(parser)
+        knowledge_parser = (
+            subcommands.choices.get("knowledge") if subcommands is not None else None
+        )
+        if knowledge_parser is None:
+            raise DocumentationError("Knowledge CLI is not registered.")
+        lines = [
+            "## 자동 관리 Knowledge CLI 참조",
+            "",
+            "이 구간은 실제 Knowledge CLI 정의에서 생성된다. 직접 수정하지 않는다.",
+            "",
+        ]
+        lines.extend(f"- `{usage}`" for usage in _leaf_usages(knowledge_parser))
+        return "\n".join(lines)
+    raise DocumentationError(f"Unsupported documentation target: {target}")
+
+
 def expected_document(current: str, managed_reference: str) -> str:
     """Replace exactly one managed region while preserving all other text."""
 
@@ -94,12 +125,13 @@ def check_document(
     path: Path,
     parser: argparse.ArgumentParser,
     implemented_commands: set[str] | frozenset[str],
+    target: str = "mde-user-guide",
 ) -> bool:
     """Return whether the managed section matches the live CLI."""
 
     current = _read_target(path)
     expected = expected_document(
-        current, render_cli_reference(parser, implemented_commands)
+        current, render_target_reference(parser, implemented_commands, target)
     )
     return current == expected
 
@@ -108,12 +140,13 @@ def preview_update(
     path: Path,
     parser: argparse.ArgumentParser,
     implemented_commands: set[str] | frozenset[str],
+    target: str = "mde-user-guide",
 ) -> tuple[str, str]:
     """Return the expected document and a unified diff without writing."""
 
     current = _read_target(path)
     expected = expected_document(
-        current, render_cli_reference(parser, implemented_commands)
+        current, render_target_reference(parser, implemented_commands, target)
     )
     relative_label = path.as_posix()
     diff = "".join(

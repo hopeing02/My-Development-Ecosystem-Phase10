@@ -8,6 +8,7 @@ from mde.documentation import (
     START_MARKER,
     expected_document,
     render_cli_reference,
+    render_target_reference,
 )
 
 
@@ -29,7 +30,21 @@ def test_cli_reference_reports_implemented_and_reserved_commands() -> None:
     assert "| `mde docs` | implemented |" in reference
     assert "| `mde knowledge` | implemented |" in reference
     assert "| `mde generate` | reserved |" in reference
-    assert "mde docs update [-h] [--target {mde-user-guide}] [--apply]" in reference
+    assert (
+        "mde docs update [-h] "
+        "[--target {mde-user-guide,knowledge-guide}] [--apply]" in reference
+    )
+
+
+def test_knowledge_reference_contains_only_knowledge_cli() -> None:
+    reference = render_target_reference(
+        build_parser(), IMPLEMENTED_COMMANDS, "knowledge-guide"
+    )
+
+    assert "## 자동 관리 Knowledge CLI 참조" in reference
+    assert "mde knowledge add" in reference
+    assert "mde knowledge backlinks" in reference
+    assert "mde workflow" not in reference
 
 
 def test_expected_document_preserves_text_outside_managed_region() -> None:
@@ -84,3 +99,23 @@ def test_docs_cli_rejects_missing_managed_markers(
 
     assert main(["docs", "update", "--apply"]) == 1
     assert "exactly one managed marker pair" in capsys.readouterr().out
+
+
+def test_docs_cli_updates_knowledge_guide_target(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    _make_repository(tmp_path, managed="current")
+    guide = (
+        tmp_path / "docs" / "05_commands" / "CMD-003-mde-knowledge-plugin-user-guide.md"
+    )
+    guide.write_text(
+        f"# Knowledge\n\n{START_MARKER}\noutdated\n{END_MARKER}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["docs", "check", "--target", "knowledge-guide"]) == 1
+    capsys.readouterr()
+    assert main(["docs", "update", "--target", "knowledge-guide", "--apply"]) == 0
+    assert "mde knowledge search" in guide.read_text(encoding="utf-8")
+    assert main(["docs", "check", "--target", "knowledge-guide"]) == 0

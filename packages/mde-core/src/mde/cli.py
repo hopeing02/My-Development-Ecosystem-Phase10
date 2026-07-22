@@ -18,6 +18,7 @@ from mde.commands.apply import apply_patch, apply_task
 from mde.commands.new import create_project
 from mde.commands.save import save
 from mde.documentation import (
+    TARGET_NAMES,
     apply_update as apply_documentation_update,
     check_document,
     find_documentation_root,
@@ -313,13 +314,13 @@ def build_parser() -> argparse.ArgumentParser:
         "check", help="Check managed documentation against the live CLI."
     )
     docs_check_parser.add_argument(
-        "--target", choices=("mde-user-guide",), default="mde-user-guide"
+        "--target", choices=TARGET_NAMES, default="mde-user-guide"
     )
     docs_update_parser = docs_subparsers.add_parser(
         "update", help="Preview or apply a managed documentation update."
     )
     docs_update_parser.add_argument(
-        "--target", choices=("mde-user-guide",), default="mde-user-guide"
+        "--target", choices=TARGET_NAMES, default="mde-user-guide"
     )
     docs_update_parser.add_argument(
         "--apply",
@@ -357,14 +358,14 @@ def run_docs_command(args: argparse.Namespace, parser: argparse.ArgumentParser) 
     root = find_documentation_root()
     path = documentation_target_path(root, args.target)
     if args.docs_action == "check":
-        if check_document(path, parser, IMPLEMENTED_COMMANDS):
+        if check_document(path, parser, IMPLEMENTED_COMMANDS, args.target):
             print(f"MDE documentation is up to date: {path}")
             return 0
         print(f"MDE documentation is out of date: {path}")
         print("Run: uv run mde docs update --apply")
         return 1
 
-    expected, diff = preview_update(path, parser, IMPLEMENTED_COMMANDS)
+    expected, diff = preview_update(path, parser, IMPLEMENTED_COMMANDS, args.target)
     if not diff:
         print(f"MDE documentation is already up to date: {path}")
         return 0

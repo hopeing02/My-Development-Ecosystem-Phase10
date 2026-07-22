@@ -8,6 +8,8 @@
 - `mde docs check`
 - `mde docs update`
 - `mde docs update --apply`
+- `mde docs check --target knowledge-guide`
+- `mde docs update --target knowledge-guide --apply`
 - CLI parser 기반 참조 생성
 - 관리 구간 보호
 
@@ -29,6 +31,8 @@ uv run mde docs check
 uv run mde docs update
 uv run mde docs update --apply
 uv run mde docs check
+uv run mde docs update --target knowledge-guide --apply
+uv run mde docs check --target knowledge-guide
 ```
 
 ## 예상 결과
@@ -41,13 +45,14 @@ uv run mde docs check
 
 ## 실제 결과
 
-- 전용 및 CLI 테스트: 9 passed
-- 전체 회귀 테스트: 142 passed
+- 전용 및 CLI 테스트: 11 passed
+- 전체 회귀 테스트: 144 passed
 - Ruff: passed
 - Formatter: passed
 - 최초 check: out of date 탐지
 - update: diff 출력, 무변경
 - update --apply: 관리 구간 갱신
 - 최종 check: up to date
+- Knowledge 가이드 target 적용 및 check: up to date
 
 결과: Passed

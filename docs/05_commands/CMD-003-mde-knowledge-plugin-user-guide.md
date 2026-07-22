@@ -389,3 +389,22 @@ uv run mde knowledge show mde-docs
 ```
 
 간단한 명령 목록은 `CMD-002-knowledge-plugin.md`를 참고한다.
+
+## 17. 자동 관리 명령 참조
+
+다음 구간은 `mde docs` 명령이 실제 Knowledge CLI 정의와 동기화한다. 나머지 상세 설명은 자동 변경하지 않는다.
+
+<!-- MDE-DOCS:CLI-REFERENCE:START -->
+## 자동 관리 Knowledge CLI 참조
+
+이 구간은 실제 Knowledge CLI 정의에서 생성된다. 직접 수정하지 않는다.
+
+- `mde knowledge add [-h] --name NAME --category {development,project,personal,work,shared} [--type {markdown,obsidian}] path`
+- `mde knowledge list [-h]`
+- `mde knowledge show [-h] source`
+- `mde knowledge update [-h] [--enabled ENABLED] [--agent-access AGENT_ACCESS] [--confirm-sensitive-access] source`
+- `mde knowledge remove [-h] source`
+- `mde knowledge scan [-h] [--all] [--category {development,project,personal,work,shared}] [--include-sensitive] [source]`
+- `mde knowledge search [-h] [--source SOURCE] [--category {development,project,personal,work,shared}] [--tag TAG] [--limit LIMIT] [--all] [--include-sensitive] [query]`
+- `mde knowledge backlinks [-h] --source SOURCE [--limit LIMIT] document`
+<!-- MDE-DOCS:CLI-REFERENCE:END -->
