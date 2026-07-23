@@ -60,6 +60,7 @@ docs/
         ├── UI/
         ├── implementation/
         ├── tests/
+        ├── usage/
         └── releases/
 ```
 

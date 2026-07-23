@@ -14,3 +14,4 @@
 - `TEST-006-managed-documentation-sync.md` — MDE 문서 동기화 검증
 - `TEST-007-autoknowledge-vault-source.md` — AutoKnowledge 개인 Vault Source 연결 검증
 - `TEST-008-personal-vault-external-migration.md` — 개인 Vault 외부 경로 이전 검증
+- `TEST-009-project-usage-and-personal-vault-structure.md` — 프로젝트 사용법과 개인 Vault 분류 구조 검증

@@ -51,6 +51,7 @@ PROJECT_DOCUMENT_DIRECTORIES = (
     "UI",
     "implementation",
     "tests",
+    "usage",
     "releases",
 )
 
@@ -246,6 +247,7 @@ def _project_sds_standard(name: str) -> str:
 - `UI/`: UI 설계
 - `implementation/`: 구현 기록
 - `tests/`: 프로젝트 테스트 계획과 결과
+- `usage/`: 프로젝트 설치·실행·기능 사용법
 - `releases/`: 프로젝트 릴리스 문서
 """
 
@@ -278,6 +280,7 @@ def _project_sds(name: str, project_type: str) -> str:
 - UI: `../UI/`
 - 구현: `../implementation/`
 - 테스트: `../tests/`
+- 사용법: `../usage/`
 - 릴리스: `../releases/`
 """
 
