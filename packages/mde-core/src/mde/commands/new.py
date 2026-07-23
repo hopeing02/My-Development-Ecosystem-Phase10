@@ -92,6 +92,10 @@ def build_template_specs(
             template_path=resolved_template_dir / "SDS-001-overview.md.tpl",
             output_path=project_docs_dir / "SDS" / "SDS-001-overview.md",
         ),
+        TemplateSpec(
+            template_path=resolved_template_dir / "GUIDE-001-usage.md.tpl",
+            output_path=project_docs_dir / "usage" / "GUIDE-001-usage.md",
+        ),
     ]
 
 

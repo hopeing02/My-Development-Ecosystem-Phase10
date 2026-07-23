@@ -32,6 +32,11 @@ def create_test_templates(root: Path) -> None:
         encoding="utf-8",
     )
 
+    (template_dir / "GUIDE-001-usage.md.tpl").write_text(
+        "# {{PROJECT_TITLE}} Usage Guide\n\nProject: {{PROJECT_NAME}}\n",
+        encoding="utf-8",
+    )
+
 
 def test_validate_project_name_accepts_valid_name() -> None:
     validate_project_name("autoknowledge-lite")
@@ -111,6 +116,17 @@ def test_build_template_specs(tmp_path: Path) -> None:
         / "SDS-001-overview.md"
     )
 
+    assert specs[2].template_path == TEMPLATE_DIR / "GUIDE-001-usage.md.tpl"
+    assert (
+        specs[2].output_path
+        == tmp_path
+        / "docs"
+        / "15_projects"
+        / "autoknowledge-lite"
+        / "usage"
+        / "GUIDE-001-usage.md"
+    )
+
 
 def test_create_project_creates_directories_and_files(tmp_path: Path) -> None:
     create_test_templates(tmp_path)
@@ -121,19 +137,23 @@ def test_create_project_creates_directories_and_files(tmp_path: Path) -> None:
     docs_dir = tmp_path / "docs" / "15_projects" / "autoknowledge-lite"
     readme_path = app_dir / "README.md"
     sds_path = docs_dir / "SDS" / "SDS-001-overview.md"
+    usage_path = docs_dir / "usage" / "GUIDE-001-usage.md"
 
     assert created_paths == [
         app_dir,
         docs_dir,
         readme_path,
         sds_path,
+        usage_path,
     ]
 
     assert readme_path.is_file()
     assert sds_path.is_file()
+    assert usage_path.is_file()
 
     assert "# Autoknowledge Lite" in readme_path.read_text(encoding="utf-8")
     assert "# SDS-001 Overview" in sds_path.read_text(encoding="utf-8")
+    assert "# Autoknowledge Lite Usage Guide" in usage_path.read_text(encoding="utf-8")
 
 
 def test_create_project_fails_if_app_path_exists(tmp_path: Path) -> None:
