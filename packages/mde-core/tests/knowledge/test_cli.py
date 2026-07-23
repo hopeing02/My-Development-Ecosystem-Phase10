@@ -1,6 +1,13 @@
+import argparse
+from io import BytesIO, TextIOWrapper
 from pathlib import Path
+import sys
+
+import pytest
 
 from mde.cli import main
+from mde.knowledge.cli import run
+from mde.knowledge.models import SearchResult
 
 
 def test_knowledge_cli_add_scan_search_show_and_remove(
@@ -69,3 +76,47 @@ def test_knowledge_cli_requires_sensitive_agent_confirmation(
         )
         == 0
     )
+
+
+@pytest.mark.parametrize(
+    ("encoding", "expected"),
+    [("cp949", "업무?정리"), ("utf-8", "업무—정리")],
+)
+def test_knowledge_cli_handles_console_encoding(
+    monkeypatch, encoding: str, expected: str
+) -> None:
+    class SearchService:
+        def search(self, *args, **kwargs) -> tuple[SearchResult, ...]:
+            return (
+                SearchResult(
+                    source_id="ks-001",
+                    source_name="docs",
+                    category="development",
+                    sensitive=False,
+                    document_id="ks-001::guide.md",
+                    title="업무—정리",
+                    relative_path="guide.md",
+                    snippet="업무—정리 절차",
+                ),
+            )
+
+    output = BytesIO()
+    console = TextIOWrapper(output, encoding=encoding, errors="strict")
+    args = argparse.Namespace(
+        knowledge_action="search",
+        query="업무",
+        source="docs",
+        category=None,
+        all_sources=False,
+        include_sensitive=False,
+        tag=None,
+        limit=20,
+    )
+
+    monkeypatch.setattr(sys, "stdout", console)
+    assert run(args, service=SearchService()) == 0
+    console.flush()
+
+    rendered = output.getvalue().decode(encoding)
+    assert expected in rendered
+    assert console.errors == "replace"

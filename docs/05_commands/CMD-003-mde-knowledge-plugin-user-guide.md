@@ -357,6 +357,13 @@ trash
 
 Markdown 이외 첨부파일은 본문 색인 대상이 아니다. 인코딩은 UTF-8과 UTF-8 BOM을 지원하며, 한 파일의 인코딩 오류가 전체 Source 스캔을 중단시키지 않는다.
 
+Windows 콘솔의 현재 출력 인코딩에서 표현할 수 없는 문자가 제목이나 검색 문맥에 있으면 해당 문자만 `?`로 대체하고 명령은 계속 실행한다. 원문과 SQLite 색인은 수정하지 않는다. 특수문자까지 그대로 출력해야 한다면 PowerShell에서 다음처럼 UTF-8 출력을 명시한다.
+
+```powershell
+$env:PYTHONIOENCODING = "utf-8"
+uv run mde knowledge search "검색어"
+```
+
 ## 16. 추천 일상 사용 흐름
 
 개발 문서 작업 후:

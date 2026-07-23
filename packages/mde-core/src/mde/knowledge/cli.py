@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import sys
 
 from mde.knowledge.errors import KnowledgeError
 from mde.knowledge.models import SOURCE_CATEGORIES, SOURCE_TYPES, ScanResult
@@ -74,6 +75,7 @@ def register_parser(
 
 
 def run(args: argparse.Namespace, service: KnowledgeService | None = None) -> int:
+    _configure_console_output()
     knowledge = service or KnowledgeService()
     try:
         if args.knowledge_action == "add":
@@ -167,6 +169,13 @@ def run(args: argparse.Namespace, service: KnowledgeService | None = None) -> in
     except KnowledgeError as error:
         print(error)
         return 1
+
+
+def _configure_console_output() -> None:
+    """Keep narrow console encodings from crashing on indexed Unicode text."""
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if callable(reconfigure):
+        reconfigure(errors="replace")
 
 
 def _print_scan(result: ScanResult) -> None:

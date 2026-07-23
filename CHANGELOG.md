@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Prevented Knowledge CLI Unicode output crashes on narrow Windows console encodings.
+
 - Added project-specific `usage/` documentation to new-project scaffolding and documented the boundary between project records and personal Vault notes.
 
 - Added `mde docs check` and approval-based managed CLI reference updates for the MDE and Knowledge guides.
