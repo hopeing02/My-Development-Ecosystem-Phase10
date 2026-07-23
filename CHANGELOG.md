@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Excluded local agent workspaces, generated dependencies, runtime data, Android build state, and the preserved nested Vault recovery copy from Git.
+
 - Prevented Knowledge CLI Unicode output crashes on narrow Windows console encodings.
 
 - Added project-specific `usage/` documentation to new-project scaffolding and documented the boundary between project records and personal Vault notes.

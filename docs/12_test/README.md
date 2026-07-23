@@ -16,3 +16,4 @@
 - `TEST-008-personal-vault-external-migration.md` — 개인 Vault 외부 경로 이전 검증
 - `TEST-009-project-usage-and-personal-vault-structure.md` — 프로젝트 사용법과 개인 Vault 분류 구조 검증
 - `TEST-010-knowledge-cli-console-encoding.md` — Knowledge CLI CP949 출력 회귀 검증
+- `TEST-011-local-artifact-git-exclusion.md` — 로컬 생성물 Git 제외와 Android 소스 추적 가능성 검증

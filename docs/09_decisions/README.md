@@ -15,3 +15,4 @@
 - `ADR-007-vault-repository-category-separation.md` — 보안 Category별 Git Vault 저장소 분리
 - `ADR-008-project-record-and-personal-vault-boundary.md` — 프로젝트 기록과 개인 Vault 내부 분류 경계
 - `ADR-009-knowledge-cli-console-encoding.md` — Knowledge CLI 콘솔 인코딩 오류 대체 정책
+- `ADR-010-local-artifact-git-exclusion.md` — 로컬 생성물과 복구본 Git 제외 정책
