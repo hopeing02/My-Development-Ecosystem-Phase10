@@ -221,6 +221,12 @@ def test_markdown_renders_and_persists_analyzed_job(tmp_path: Path) -> None:
     markdown = response.json()["markdown"]
     assert markdown.startswith("---\n")
     assert "# Knowledge Note" in markdown
+    assert "aliases:" in markdown
+    assert 'status: "to-review"' in markdown
+    assert "reviewed: false" in markdown
+    assert "topics:" in markdown
+    assert "[[MOC - \ubc1b\uc740\ud568]]" in markdown
+    assert "## \uc5f0\uacb0" in markdown
     assert "## Summary" in markdown
     assert "## Key Points" in markdown
     assert "## Original Content\n\nFirst point. Second point." in markdown

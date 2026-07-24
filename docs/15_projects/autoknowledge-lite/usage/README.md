@@ -21,3 +21,4 @@
 - `GUIDE-002-vault-folder-selection.md`: 개인 Vault 고정 폴더 선택과 안전 제한
 - `GUIDE-003-android-apk-download.md`: 휴대폰에서 v0.2.0 APK 직접 다운로드와 설치
 - `GUIDE-004-pc-capture-page.md`: PC 클립보드·직접 입력과 Vault 폴더 선택 저장
+- `GUIDE-005-obsidian-knowledge-graph.md`: 외부 Vault, MOC, Graph와 Bases 사용법

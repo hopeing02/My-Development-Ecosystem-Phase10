@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-import json
+from autoknowledge_lite.knowledge_graph import (
+    metadata_for_record,
+    render_connections,
+    render_note,
+)
 
 from autoknowledge_lite.models import ShareRecord
 
@@ -19,21 +23,27 @@ def render_markdown(record: ShareRecord) -> str:
 
     title = record.title or record.analysis.summary[:80] or "Untitled knowledge"
     source = record.source_url or ""
-    tags = "\n".join(f"  - {json.dumps(tag)}" for tag in record.analysis.tags)
+    metadata = metadata_for_record(record)
     points = "\n".join(f"- {point}" for point in record.analysis.key_points)
-    return (
-        "---\n"
-        f"title: {json.dumps(title)}\n"
-        f"source_url: {json.dumps(source)}\n"
-        f"received_at: {json.dumps(record.received_at.isoformat())}\n"
-        "tags:\n"
-        f"{tags}\n"
-        "---\n\n"
+    properties: dict[str, object] = {
+        "title": title,
+        "aliases": list(metadata.aliases),
+        "source_url": source,
+        "received_at": record.received_at.isoformat(),
+        "tags": list(metadata.tags),
+        "type": metadata.note_type,
+        "status": metadata.status,
+        "reviewed": metadata.reviewed,
+        "topics": [f"[[{topic}]]" for topic in metadata.topics],
+    }
+    body = (
         f"# {title}\n\n"
         "## Summary\n\n"
         f"{record.analysis.summary}\n\n"
         "## Key Points\n\n"
         f"{points}\n\n"
         "## Original Content\n\n"
-        f"{record.content.rstrip()}\n"
+        f"{record.content.rstrip()}\n\n"
+        f"{render_connections(metadata)}"
     )
+    return render_note(properties, body)

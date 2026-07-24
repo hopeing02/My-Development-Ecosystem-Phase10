@@ -20,3 +20,4 @@
 - `TEST-002-vault-folder-selection.md`: 고정 폴더 선택·기본값·경로 이탈 방지 검증
 - `TEST-003-android-apk-download.md`: APK 고정 다운로드·404·Tailscale 실제 파일 검증
 - `TEST-004-pc-capture-page.md`: PC 화면·고정 폴더·기존 저장 API 연결 검증
+- `TEST-005-obsidian-knowledge-graph.md`: 기존 원문 보존과 자동 그래프 구성 검증

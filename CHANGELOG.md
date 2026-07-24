@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Added automatic Obsidian aliases, normalized tags, MOC links, graph settings, templates, and Bases for the personal Vault.
+
 - Added AutoKnowledge Lite 0.2.1 PC clipboard and fixed-folder capture page at `/pc`.
 
 - Added a fixed, Tailscale-accessible AutoKnowledge Lite Android APK download endpoint.
