@@ -14,3 +14,9 @@
 ## 문서 이름
 
 첫 통합 사용 가이드는 `GUIDE-001-usage.md`를 사용하고, 기능별 가이드가 필요하면 `GUIDE-002-<topic>.md` 순서로 추가합니다.
+
+## 현재 가이드
+
+- `GUIDE-001-usage.md`: 설치, 실행, Android 앱, Git 동기화와 문제 해결
+- `GUIDE-002-vault-folder-selection.md`: 개인 Vault 고정 폴더 선택과 안전 제한
+- `GUIDE-003-android-apk-download.md`: 휴대폰에서 v0.2.0 APK 직접 다운로드와 설치

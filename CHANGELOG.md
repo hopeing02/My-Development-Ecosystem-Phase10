@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+- Added a fixed, Tailscale-accessible AutoKnowledge Lite Android APK download endpoint.
+
+- Added AutoKnowledge Lite 0.2.0 fixed Vault folder selection with server-side path allowlisting and Android selection persistence.
+
+- Integrated the complete AutoKnowledge Lite Python and Android implementation into `apps/autoknowledge-lite/` while preserving the personal Vault and Git synchronization settings.
+
 - Excluded local agent workspaces, generated dependencies, runtime data, Android build state, and the preserved nested Vault recovery copy from Git.
 
 - Prevented Knowledge CLI Unicode output crashes on narrow Windows console encodings.

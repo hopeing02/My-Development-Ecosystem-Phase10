@@ -16,3 +16,6 @@
 - `ADR-008-project-record-and-personal-vault-boundary.md` — 프로젝트 기록과 개인 Vault 내부 분류 경계
 - `ADR-009-knowledge-cli-console-encoding.md` — Knowledge CLI 콘솔 인코딩 오류 대체 정책
 - `ADR-010-local-artifact-git-exclusion.md` — 로컬 생성물과 복구본 Git 제외 정책
+- `ADR-011-autoknowledge-lite-monorepo-integration.md` — AutoKnowledge Lite 코드의 MDE 모노레포 통합
+- `ADR-012-autoknowledge-vault-folder-allowlist.md` — AutoKnowledge Vault 고정 폴더 선택과 경로 보호
+- `ADR-013-autoknowledge-apk-download-endpoint.md` — 기존 로컬 서버의 고정 Android APK 다운로드 경로
