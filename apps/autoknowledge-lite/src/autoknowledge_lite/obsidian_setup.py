@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 REQUIRED_CORE_PLUGINS: tuple[str, ...] = (
+    "global-search",
     "backlink",
     "outgoing-link",
     "graph",

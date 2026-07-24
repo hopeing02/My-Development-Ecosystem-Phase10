@@ -31,6 +31,7 @@ def test_setup_creates_required_plugins_graph_template_and_bases(
     plugins = json.loads(
         (vault / ".obsidian" / "core-plugins.json").read_text(encoding="utf-8")
     )
+    assert "global-search" in plugins
     assert set(REQUIRED_CORE_PLUGINS).issubset(plugins)
     graph = json.loads((vault / ".obsidian" / "graph.json").read_text(encoding="utf-8"))
     assert graph["search"] == '-path:"90_Archive" -tag:#integration-test'
