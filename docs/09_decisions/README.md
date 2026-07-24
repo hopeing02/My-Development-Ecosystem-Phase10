@@ -19,3 +19,4 @@
 - `ADR-011-autoknowledge-lite-monorepo-integration.md` — AutoKnowledge Lite 코드의 MDE 모노레포 통합
 - `ADR-012-autoknowledge-vault-folder-allowlist.md` — AutoKnowledge Vault 고정 폴더 선택과 경로 보호
 - `ADR-013-autoknowledge-apk-download-endpoint.md` — 기존 로컬 서버의 고정 Android APK 다운로드 경로
+- `ADR-014-autoknowledge-pc-capture-page.md` — 기존 로컬 서버의 PC 클립보드·폴더 선택 저장 화면

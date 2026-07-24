@@ -22,3 +22,4 @@
 - [ADR-011 AutoKnowledge Lite 모노레포 통합](../../09_decisions/ADR-011-autoknowledge-lite-monorepo-integration.md)
 - [ADR-012 AutoKnowledge Vault 폴더 허용 목록](../../09_decisions/ADR-012-autoknowledge-vault-folder-allowlist.md)
 - [ADR-013 AutoKnowledge APK 다운로드 경로](../../09_decisions/ADR-013-autoknowledge-apk-download-endpoint.md)
+- [ADR-014 AutoKnowledge PC 저장 화면](../../09_decisions/ADR-014-autoknowledge-pc-capture-page.md)

@@ -31,8 +31,28 @@ def test_status_reports_service_version(tmp_path: Path) -> None:
     assert response.json() == {
         "service": "autoknowledge-lite",
         "status": "ok",
-        "version": "0.2.0",
+        "version": "0.2.1",
     }
+
+
+def test_pc_capture_page_has_fixed_safe_folder_options(tmp_path: Path) -> None:
+    response = client_for(tmp_path).get("/pc")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert response.text.count("<option value=") == 6
+    for folder in (
+        "00_Inbox",
+        "10_Life",
+        "20_Learning",
+        "30_Interests",
+        "40_Reference",
+        "90_Archive",
+    ):
+        assert f'<option value="{folder}">' in response.text
+    assert 'fetch("/v1/share"' in response.text
+    assert 'name="target_folder"' in response.text
+    assert 'type="text" name="target_folder"' not in response.text
 
 
 def test_android_apk_download_serves_only_configured_file(tmp_path: Path) -> None:

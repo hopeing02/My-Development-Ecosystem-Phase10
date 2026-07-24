@@ -26,6 +26,14 @@ uv run --project apps/autoknowledge-lite uvicorn autoknowledge_lite.api:app --ho
 Invoke-RestMethod http://127.0.0.1:8000/v1/status
 ```
 
+## PC 저장 화면
+
+브라우저에서 다음 주소를 열어 클립보드 또는 직접 입력 내용을 고정 Vault 폴더에 저장합니다.
+
+```text
+http://127.0.0.1:8000/pc
+```
+
 ## Android APK 다운로드
 
 휴대폰이 노트북과 같은 Tailscale 네트워크에 연결돼 있으면 다음 주소에서 v0.2.0 APK를 직접 받습니다.

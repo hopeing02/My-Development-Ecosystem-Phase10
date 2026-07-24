@@ -9,7 +9,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
 from autoknowledge_lite.ai import (
     AnalysisError,
@@ -35,6 +35,7 @@ from autoknowledge_lite.models import (
     StatusResponse,
 )
 from autoknowledge_lite.obsidian import ObsidianNoteStore, ObsidianStoreError
+from autoknowledge_lite.pc_ui import PC_CAPTURE_HTML
 from autoknowledge_lite.store import (
     JsonShareStore,
     ShareNotFoundError,
@@ -42,7 +43,7 @@ from autoknowledge_lite.store import (
 )
 
 LOGGER = logging.getLogger(__name__)
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.2.1"
 ANDROID_APK_PATH = (
     Path(__file__).resolve().parents[2]
     / "android"
@@ -86,6 +87,10 @@ def create_app(
     @application.get("/v1/status", response_model=StatusResponse)
     def get_status() -> StatusResponse:
         return StatusResponse(version=APP_VERSION)
+
+    @application.get("/pc", response_class=HTMLResponse)
+    def get_pc_capture_page() -> str:
+        return PC_CAPTURE_HTML
 
     @application.get("/downloads/autoknowledge-lite.apk")
     def download_android_apk() -> FileResponse:

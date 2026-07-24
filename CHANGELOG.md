@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Added AutoKnowledge Lite 0.2.1 PC clipboard and fixed-folder capture page at `/pc`.
+
 - Added a fixed, Tailscale-accessible AutoKnowledge Lite Android APK download endpoint.
 
 - Added AutoKnowledge Lite 0.2.0 fixed Vault folder selection with server-side path allowlisting and Android selection persistence.

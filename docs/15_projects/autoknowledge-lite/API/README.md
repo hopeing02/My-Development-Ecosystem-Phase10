@@ -16,6 +16,10 @@ URL만 공유되면 공개 웹페이지 본문을 보강한다. 내부망 주소
 
 빌드된 AutoKnowledge Lite v0.2.0 Android APK 한 파일을 내려준다. 경로 입력은 받지 않으며 파일이 없으면 `404`를 반환한다.
 
+## GET `/pc`
+
+PC에서 제목, 고정 Vault 폴더와 내용을 입력해 기존 `POST /v1/share`로 저장하는 정적 화면을 제공한다.
+
 ## POST `/v1/ai/process`
 
 접수된 `job_id`를 분석하고 요약·핵심 항목·태그·제공자 정보를 작업 JSON에 저장한다.

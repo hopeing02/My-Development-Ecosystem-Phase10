@@ -20,3 +20,4 @@
 - `CODE-001-monorepo-integration.md`: 별도 저장소의 실행 코드와 자동 시작 경로 통합
 - `CODE-002-vault-folder-selection.md`: 고정 개인 Vault 폴더 선택과 경로 보호
 - `CODE-003-android-apk-download.md`: 고정 APK 한 파일의 휴대폰 다운로드
+- `CODE-004-pc-capture-page.md`: PC 클립보드·직접 입력과 고정 폴더 저장 화면
