@@ -5,25 +5,29 @@ $serverLog = Join-Path $logDirectory "server-autostart.log"
 
 New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
 
-try {
-    $listeners = [System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners()
-    if ($listeners.Port -contains 8000) {
-        exit 0
-    }
-
-    if (-not (Test-Path -LiteralPath $pythonPath -PathType Leaf)) {
-        throw "Python runtime not found. Run 'uv sync --project apps/autoknowledge-lite' first."
-    }
-
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    Add-Content -LiteralPath $serverLog -Encoding UTF8 -Value "$timestamp Starting AutoKnowledge Lite."
-    Set-Location -LiteralPath $appRoot
-    & $pythonPath -m uvicorn autoknowledge_lite.api:app --host 0.0.0.0 --port 8000 2>&1 |
-        ForEach-Object { Add-Content -LiteralPath $serverLog -Encoding UTF8 -Value $_ }
-    exit $LASTEXITCODE
+if (-not (Test-Path -LiteralPath $pythonPath -PathType Leaf)) {
+    throw "Python runtime not found. Run 'uv sync --project apps/autoknowledge-lite' first."
 }
-catch {
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    Add-Content -LiteralPath $serverLog -Encoding UTF8 -Value "$timestamp Startup failed: $($_.Exception.Message)"
-    exit 1
+
+while ($true) {
+    try {
+        $listeners = [System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners()
+        if ($listeners.Port -contains 8000) {
+            Start-Sleep -Seconds 10
+            continue
+        }
+
+        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        Add-Content -LiteralPath $serverLog -Encoding UTF8 -Value "$timestamp Starting AutoKnowledge Lite."
+        Set-Location -LiteralPath $appRoot
+        & $pythonPath -m uvicorn autoknowledge_lite.api:app --host 0.0.0.0 --port 8000 2>&1 |
+            ForEach-Object { Add-Content -LiteralPath $serverLog -Encoding UTF8 -Value $_ }
+        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        Add-Content -LiteralPath $serverLog -Encoding UTF8 -Value "$timestamp Server exited with code $LASTEXITCODE; retrying."
+    }
+    catch {
+        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        Add-Content -LiteralPath $serverLog -Encoding UTF8 -Value "$timestamp Startup failed: $($_.Exception.Message)"
+    }
+    Start-Sleep -Seconds 5
 }

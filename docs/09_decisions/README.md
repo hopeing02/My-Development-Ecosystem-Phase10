@@ -1,5 +1,7 @@
 # ADR
 
+- `ADR-016-knowledge-graph-api-viewer.md` — Knowledge Graph API와 Viewer 통합
+
 설계 결정 · ADR
 
 이 디렉터리의 문서는 MDE 문서 흐름과 ID 규칙을 따릅니다.

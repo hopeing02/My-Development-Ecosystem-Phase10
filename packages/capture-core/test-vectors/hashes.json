@@ -1,0 +1,8 @@
+[
+  {
+    "name": "normalized_korean",
+    "input": "첫 줄\r\n둘째 줄\r\n",
+    "normalized": "첫 줄\n둘째 줄",
+    "sha256": "5fa3a5849b103ab0cf53249fd7152ff68e3f9b039da1038b0211f28de331eee0"
+  }
+]

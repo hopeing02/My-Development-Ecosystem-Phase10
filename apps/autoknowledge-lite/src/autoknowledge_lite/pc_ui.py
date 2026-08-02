@@ -74,6 +74,23 @@ PC_CAPTURE_HTML = """<!doctype html>
     #message.success { background: #e7f7ed; color: #176636; }
     #message.error { background: #fff0f0; color: #a22c2c; }
     .hint { margin-top: 8px; color: #6b778c; font-size: 13px; }
+    .parent-box {
+      border: 1px solid #d9e1ec;
+      border-radius: 14px;
+      padding: 14px;
+      background: #f8fafe;
+    }
+    #parent-results { display: grid; gap: 8px; margin-top: 10px; }
+    #parent-results button {
+      text-align: left;
+      border: 1px solid #d4ddeb;
+      background: #ffffff;
+      color: #172033;
+    }
+    #parent-results button strong, #parent-results button small { display: block; }
+    #parent-results button small { margin-top: 4px; color: #6b778c; }
+    #selected-parent { margin: 10px 0 0; color: #2458b3; font-weight: 700; }
+    #clear-parent { width: auto; margin-top: 8px; padding: 8px 10px; background: #e7edf6; }
     @media (max-width: 560px) {
       main { padding: 20px; }
       .actions { grid-template-columns: 1fr; }
@@ -99,6 +116,15 @@ PC_CAPTURE_HTML = """<!doctype html>
         <option value="90_Archive">90_Archive — 보관</option>
       </select>
 
+      <label for="parent-search">이 문서를 참조할 상위 주제 문서 <span class="hint">(선택)</span></label>
+      <div class="parent-box">
+        <input id="parent-search" type="search" autocomplete="off"
+          placeholder="제목·별칭·경로로 기존 문서 검색">
+        <div id="parent-results" aria-live="polite"></div>
+        <p id="selected-parent">선택 안 함 — 직전에 웹에서 저장한 문서를 자동으로 연결합니다.</p>
+        <button id="clear-parent" type="button" hidden>선택 해제</button>
+      </div>
+
       <label for="content">저장할 내용</label>
       <textarea id="content" name="content" required
         placeholder="내용을 직접 입력하거나 클립보드 붙여넣기를 누르세요."></textarea>
@@ -120,6 +146,12 @@ PC_CAPTURE_HTML = """<!doctype html>
     const pasteButton = document.querySelector("#paste-button");
     const saveButton = document.querySelector("#save-button");
     const message = document.querySelector("#message");
+    const parentSearch = document.querySelector("#parent-search");
+    const parentResults = document.querySelector("#parent-results");
+    const selectedParentText = document.querySelector("#selected-parent");
+    const clearParent = document.querySelector("#clear-parent");
+    let selectedParent = null;
+    let searchTimer = null;
 
     function showMessage(text, kind = "") {
       message.textContent = text;
@@ -134,6 +166,52 @@ PC_CAPTURE_HTML = """<!doctype html>
       } catch {
         showMessage("브라우저가 클립보드 읽기를 허용하지 않았습니다. 직접 붙여넣어 주세요.", "error");
       }
+    });
+
+    function selectParent(document) {
+      selectedParent = document;
+      selectedParentText.textContent = `선택한 상위 주제: ${document.title} · ${document.relative_path}`;
+      clearParent.hidden = false;
+      parentResults.replaceChildren();
+      parentSearch.value = "";
+    }
+
+    clearParent.addEventListener("click", () => {
+      selectedParent = null;
+      selectedParentText.textContent = "선택 안 함 — 직전에 웹에서 저장한 문서를 자동으로 연결합니다.";
+      clearParent.hidden = true;
+      parentSearch.focus();
+    });
+
+    parentSearch.addEventListener("input", () => {
+      window.clearTimeout(searchTimer);
+      const query = parentSearch.value.trim();
+      if (!query) {
+        parentResults.replaceChildren();
+        return;
+      }
+      searchTimer = window.setTimeout(async () => {
+        try {
+          const response = await fetch(`/v1/knowledge/documents?q=${encodeURIComponent(query)}`);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const result = await response.json();
+          parentResults.replaceChildren();
+          for (const candidate of result.documents) {
+            const item = window.document.createElement("button");
+            item.type = "button";
+            const name = window.document.createElement("strong");
+            name.textContent = candidate.title;
+            const path = window.document.createElement("small");
+            path.textContent = candidate.relative_path;
+            item.append(name, path);
+            item.addEventListener("click", () => selectParent(candidate));
+            parentResults.append(item);
+          }
+          if (!result.documents.length) parentResults.textContent = "검색 결과가 없습니다.";
+        } catch {
+          parentResults.textContent = "상위 주제 문서를 검색하지 못했습니다.";
+        }
+      }, 300);
     });
 
     form.addEventListener("submit", async (event) => {
@@ -154,7 +232,9 @@ PC_CAPTURE_HTML = """<!doctype html>
           body: JSON.stringify({
             content: text,
             title: title.value.trim() || null,
-            target_folder: targetFolder.value
+            target_folder: targetFolder.value,
+            capture_origin: "pc_clipboard",
+            parent_document_id: selectedParent ? selectedParent.id : null
           })
         });
         if (!response.ok) {
@@ -164,6 +244,9 @@ PC_CAPTURE_HTML = """<!doctype html>
         showMessage(`저장 요청 완료: ${targetFolder.value} · ${result.job_id}`, "success");
         title.value = "";
         content.value = "";
+        selectedParent = null;
+        selectedParentText.textContent = "선택 안 함 — 직전에 웹에서 저장한 문서를 자동으로 연결합니다.";
+        clearParent.hidden = true;
       } catch {
         showMessage("저장하지 못했습니다. 서버 상태를 확인하세요.", "error");
       } finally {

@@ -1,0 +1,19 @@
+{
+  "name": "MDE Knowledge Viewer",
+  "short_name": "Knowledge Viewer",
+  "description": "MDE Knowledge Graph를 탐색하는 로컬 읽기 전용 앱",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#eef2f9",
+  "theme_color": "#111a32",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "/icons/knowledge-viewer.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

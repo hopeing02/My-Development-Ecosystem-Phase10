@@ -9,4 +9,5 @@
 - `CMD-001 AI Command System.md` — AI 명령 체계
 - `CMD-002-knowledge-plugin.md` — Knowledge Plugin CLI
 - `CMD-003-mde-knowledge-plugin-user-guide.md` — Knowledge Plugin 상세 사용자 가이드
+- `CMD-005-knowledge-graph-viewer.md` — Graph API, Viewer와 AutoKnowledge CLI
 - `CMD-004-mde-user-guide.md` — MDE 전체 사용자 가이드와 자동 관리 CLI 참조

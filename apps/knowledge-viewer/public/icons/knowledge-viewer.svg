@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="MDE Knowledge Viewer">
+  <rect width="512" height="512" rx="112" fill="#111a32"/>
+  <path d="M144 156 256 96l112 60v132l-112 64-112-64Z" fill="none" stroke="#82a6ff" stroke-width="28" stroke-linejoin="round"/>
+  <circle cx="144" cy="156" r="34" fill="#ffb020"/>
+  <circle cx="368" cy="156" r="34" fill="#4f7cff"/>
+  <circle cx="256" cy="352" r="38" fill="#f7f9ff"/>
+  <path d="M256 352v64" stroke="#82a6ff" stroke-width="28" stroke-linecap="round"/>
+</svg>

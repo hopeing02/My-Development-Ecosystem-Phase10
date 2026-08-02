@@ -70,12 +70,26 @@ final class AndroidCaptureLocalStore implements CaptureLocalStore {
     public synchronized List<CaptureRequest> pending() {
         List<CaptureRequest> result = new ArrayList<>();
         JSONArray items = array(PENDING);
+        boolean migrationFailed = false;
         for (int index = 0; index < items.length(); index++) {
             try {
-                result.add(fromJson(items.getJSONObject(index)));
+                JSONObject item = items.getJSONObject(index);
+                if ("PERMANENT_FAILED".equals(item.optString("migrationStatus"))) {
+                    continue;
+                }
+                result.add(fromJson(item));
             } catch (Exception ignored) {
                 // Keep unreadable encrypted entries in storage for manual recovery.
+                try {
+                    items.getJSONObject(index).put("migrationStatus", "MIGRATION_FAILED");
+                    migrationFailed = true;
+                } catch (Exception statusError) {
+                    // The original entry remains untouched when status annotation fails.
+                }
             }
+        }
+        if (migrationFailed) {
+            preferences.edit().putString(PENDING, items.toString()).apply();
         }
         return result;
     }
@@ -94,6 +108,23 @@ final class AndroidCaptureLocalStore implements CaptureLocalStore {
             if (item != null && hash.equals(item.optString("contentHash"))) {
                 try {
                     item.put("retryCount", item.optInt("retryCount", 0) + 1);
+                } catch (Exception ignored) {
+                    return;
+                }
+            }
+        }
+        preferences.edit().putString(PENDING, items.toString()).apply();
+    }
+
+    @Override
+    public synchronized void markPermanentFailure(String hash) {
+        JSONArray items = array(PENDING);
+        for (int index = 0; index < items.length(); index++) {
+            JSONObject item = items.optJSONObject(index);
+            if (item != null && hash.equals(item.optString("contentHash"))) {
+                try {
+                    item.put("retryCount", RetryPendingCapturesUseCase.MAX_AUTO_RETRIES);
+                    item.put("migrationStatus", "PERMANENT_FAILED");
                 } catch (Exception ignored) {
                     return;
                 }
@@ -122,6 +153,8 @@ final class AndroidCaptureLocalStore implements CaptureLocalStore {
 
     private JSONObject toJson(CaptureRequest request) throws Exception {
         return new JSONObject()
+                .put("schemaVersion", "1.0")
+                .put("captureId", request.captureId)
                 .put("source", request.source.name())
                 .put("content", secureTextStore.encrypt(request.content))
                 .put("contentHash", request.contentHash)
@@ -129,14 +162,21 @@ final class AndroidCaptureLocalStore implements CaptureLocalStore {
                 .put("parentDocumentId", request.parentDocumentId)
                 .put("capturedAt", request.capturedAt)
                 .put("deviceId", request.deviceId)
+                .put("migrationStatus", "READY")
                 .put("retryCount", 0);
     }
 
     private CaptureRequest fromJson(JSONObject item) throws Exception {
+        String contentHash = item.getString("contentHash");
+        String captureId = item.optString("captureId");
+        if (captureId.isEmpty()) {
+            captureId = "cap_legacy_" + contentHash;
+        }
         return new CaptureRequest(
+                captureId,
                 CaptureSource.fromStored(item.optString("source")),
                 secureTextStore.decrypt(item.getString("content")),
-                item.getString("contentHash"),
+                contentHash,
                 item.optString("targetFolder", SharePayload.DEFAULT_VAULT_FOLDER),
                 item.optString("parentDocumentId"),
                 item.optString("capturedAt"),

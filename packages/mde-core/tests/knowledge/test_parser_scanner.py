@@ -31,7 +31,7 @@ aliases:
     )
 
     assert parsed.title == "가족 일정"
-    assert parsed.aliases == ("가족", "스케줄") or parsed.aliases == ("가족 스케줄",)
+    assert parsed.aliases == ("가족 스케줄",)
     assert set(parsed.tags) == {"가족", "일정", "본문태그", "가족/일정"}
     assert {(link.target, link.link_type) for link in parsed.outgoing_links} == {
         ("../DEV/DEV-001.md", "internal_markdown"),
@@ -39,6 +39,12 @@ aliases:
         ("가족 일정", "wiki_link"),
         ("사진.png", "attachment"),
     }
+    displayed = next(
+        link for link in parsed.outgoing_links if link.display_text == "일정 보기"
+    )
+    assert displayed.raw_target == "가족 일정|일정 보기"
+    headed = next(link for link in parsed.outgoing_links if link.heading == "학원")
+    assert headed.raw_target == "가족 일정#학원"
 
 
 def test_parser_uses_h1_then_filename_and_continues_after_bad_frontmatter() -> None:
@@ -74,3 +80,45 @@ def test_scanner_accepts_utf8_bom_and_rejects_other_encodings(tmp_path: Path) ->
     invalid.write_bytes(b"\xff\xfe\x00")
     with pytest.raises(UnicodeDecodeError):
         scan_file(tmp_path, invalid)
+
+
+def test_parser_never_extracts_frontmatter_or_code_links() -> None:
+    parsed = parse_markdown(
+        """---
+tags: [py, 전체]
+aliases: [모두, '[[가짜 메타 링크]]']
+---
+`[[가짜 인라인 링크]]`
+```text
+[[가짜 코드 링크]]
+```
+[[실제 링크]]
+""",
+        Path("링크.md"),
+    )
+
+    assert [link.target for link in parsed.outgoing_links] == ["실제 링크"]
+    occurrence = parsed.outgoing_links[0]
+    assert occurrence.raw_text == "[[실제 링크]]"
+    assert occurrence.line == 9
+    assert occurrence.column == 1
+    assert occurrence.start_offset < occurrence.end_offset
+    assert occurrence.occurrence_id.startswith("link-")
+
+
+def test_parser_preserves_scalar_alias_as_one_value() -> None:
+    parsed = parse_markdown(
+        "---\naliases: 전체 연동 검증\n---\n본문\n", Path("문서.md")
+    )
+
+    assert parsed.aliases == ("전체 연동 검증",)
+
+
+def test_scanner_excludes_command_backups(tmp_path: Path) -> None:
+    visible = tmp_path / "visible.md"
+    visible.write_text("# Visible", encoding="utf-8")
+    backup = tmp_path / ".mde-backups" / "2026-07-30" / "visible.md"
+    backup.parent.mkdir(parents=True)
+    backup.write_text("# Backup", encoding="utf-8")
+
+    assert iter_markdown_files(tmp_path) == (visible,)

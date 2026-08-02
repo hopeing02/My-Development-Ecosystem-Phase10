@@ -25,6 +25,13 @@ from autoknowledge_lite.content import (
     HttpContentFetcher,
     should_fetch_content,
 )
+from autoknowledge_lite.capture_api import (
+    CaptureApplicationService,
+    CaptureError,
+    create_capture_service,
+    install_capture_api,
+    legacy_share_to_envelope,
+)
 from autoknowledge_lite.git_sync import GitNoteSync, GitSyncError, NoteSync
 from autoknowledge_lite.markdown import MarkdownRenderError, render_markdown
 from autoknowledge_lite.mde_client import MDEClientError, MDEKnowledgeClient
@@ -84,6 +91,7 @@ def create_app(
     git_sync: NoteSync | None = None,
     mde_client: KnowledgeIndexer | None = None,
     android_apk_path: Path | None = None,
+    capture_service: CaptureApplicationService | None = None,
 ) -> FastAPI:
     """Create an API application with an injectable persistence boundary."""
 
@@ -110,6 +118,13 @@ def create_app(
         version=APP_VERSION,
         description="Capture shared content for the AutoKnowledge workflow.",
     )
+    unified_capture_service = capture_service or create_capture_service(
+        obsidian_store.vault_dir,
+        share_store.root,
+        indexer=knowledge_indexer,
+        knowledge_source=knowledge_source,
+    )
+    install_capture_api(application, unified_capture_service)
 
     @application.get("/v1/status", response_model=StatusResponse)
     async def get_status() -> StatusResponse:
@@ -170,6 +185,7 @@ def create_app(
         background_tasks: BackgroundTasks,
     ) -> ShareAccepted:
         received_at = datetime.now(timezone.utc)
+        job_id = str(uuid4())
         parent_document_id = request.parent_document_id
         if (
             request.capture_origin in {"pc_clipboard", "android_clipboard"}
@@ -177,8 +193,23 @@ def create_app(
         ):
             previous = share_store.latest_saved(capture_origin=request.capture_origin)
             parent_document_id = previous.document_id if previous else None
+        capture_result = None
+        if request.capture_origin == "android_clipboard" and request.source_type:
+            try:
+                capture_result = unified_capture_service.capture(
+                    legacy_share_to_envelope(request, job_id)
+                )
+            except CaptureError as error:
+                raise HTTPException(
+                    status_code=error.http_status,
+                    detail={
+                        "code": error.code,
+                        "message": error.message,
+                        "field": error.field,
+                    },
+                ) from error
         record = ShareRecord(
-            job_id=str(uuid4()),
+            job_id=job_id,
             received_at=received_at,
             content=request.content,
             title=request.title,
@@ -192,6 +223,8 @@ def create_app(
             content_hash=request.content_hash,
             captured_at=request.captured_at,
             device_id=request.device_id,
+            document_id=capture_result.document_id if capture_result else None,
+            note_path=capture_result.document_path if capture_result else None,
         )
         try:
             share_store.save(record)
@@ -202,7 +235,7 @@ def create_app(
                 detail="Unable to accept shared content.",
             ) from error
         LOGGER.info("Accepted share job %s", record.job_id)
-        if automatic_processing:
+        if automatic_processing and capture_result is None:
             background_tasks.add_task(auto_process_job, record.job_id)
         return ShareAccepted(
             job_id=record.job_id,

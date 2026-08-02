@@ -6,6 +6,7 @@ import json
 import os
 import re
 from collections import Counter
+from threading import Lock
 from typing import Any, Protocol
 
 from autoknowledge_lite.models import KnowledgeAnalysis, ShareRecord
@@ -87,18 +88,31 @@ class OpenAIKnowledgeAnalyzer:
 
     def __init__(self, client: Any | None = None, model: str | None = None) -> None:
         self.model = model or os.getenv("OPENAI_MODEL", "gpt-5.6-sol")
-        if client is None:
-            try:
-                from openai import OpenAI
-            except ImportError as error:
-                raise AnalysisError("The OpenAI SDK is not installed.") from error
-            client = OpenAI()
         self.client = client
+        self._client_lock = Lock()
         self.provider = f"openai:{self.model}"
+
+    def _client(self) -> Any:
+        """Create the provider client only when analysis is requested."""
+
+        if self.client is None:
+            with self._client_lock:
+                if self.client is None:
+                    try:
+                        from openai import OpenAI
+                    except ImportError as error:
+                        raise AnalysisError(
+                            "The OpenAI SDK is not installed."
+                        ) from error
+                    self.client = OpenAI(
+                        timeout=_provider_timeout_seconds(),
+                        max_retries=0,
+                    )
+        return self.client
 
     def analyze(self, record: ShareRecord) -> KnowledgeAnalysis:
         try:
-            response = self.client.responses.create(
+            response = self._client().responses.create(
                 model=self.model,
                 instructions=SYSTEM_PROMPT,
                 input=_content_prompt(record),
@@ -115,18 +129,31 @@ class ClaudeKnowledgeAnalyzer:
 
     def __init__(self, client: Any | None = None, model: str | None = None) -> None:
         self.model = model or os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
-        if client is None:
-            try:
-                from anthropic import Anthropic
-            except ImportError as error:
-                raise AnalysisError("The Anthropic SDK is not installed.") from error
-            client = Anthropic()
         self.client = client
+        self._client_lock = Lock()
         self.provider = f"claude:{self.model}"
+
+    def _client(self) -> Any:
+        """Create the provider client only when analysis is requested."""
+
+        if self.client is None:
+            with self._client_lock:
+                if self.client is None:
+                    try:
+                        from anthropic import Anthropic
+                    except ImportError as error:
+                        raise AnalysisError(
+                            "The Anthropic SDK is not installed."
+                        ) from error
+                    self.client = Anthropic(
+                        timeout=_provider_timeout_seconds(),
+                        max_retries=0,
+                    )
+        return self.client
 
     def analyze(self, record: ShareRecord) -> KnowledgeAnalysis:
         try:
-            message = self.client.messages.create(
+            message = self._client().messages.create(
                 model=self.model,
                 max_tokens=1200,
                 system=SYSTEM_PROMPT,
@@ -162,6 +189,21 @@ def _provider_from_api_keys() -> str:
     if os.getenv("ANTHROPIC_API_KEY"):
         return "claude"
     return "local"
+
+
+def _provider_timeout_seconds() -> float:
+    configured = os.getenv("AUTOKNOWLEDGE_AI_TIMEOUT_SECONDS", "30")
+    try:
+        timeout = float(configured)
+    except ValueError as error:
+        raise AnalysisError(
+            "AUTOKNOWLEDGE_AI_TIMEOUT_SECONDS must be a number."
+        ) from error
+    if timeout <= 0:
+        raise AnalysisError(
+            "AUTOKNOWLEDGE_AI_TIMEOUT_SECONDS must be greater than zero."
+        )
+    return timeout
 
 
 def _content_prompt(record: ShareRecord) -> str:

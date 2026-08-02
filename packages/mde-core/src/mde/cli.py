@@ -36,6 +36,8 @@ from mde.sync import SyncPolicy, run_mobile_sync
 from mde.git import repository as git_repository
 from mde.knowledge.cli import register_parser as register_knowledge_parser
 from mde.knowledge.cli import run as run_knowledge_command
+from mde.codex_capture.cli import register_parser as register_codex_parser
+from mde.codex_capture.cli import run as run_codex_command
 
 AVAILABLE_COMMANDS = [
     "new",
@@ -50,6 +52,7 @@ AVAILABLE_COMMANDS = [
     "ai",
     "inbox",
     "knowledge",
+    "codex",
     #    "doctor",
     "docs",
     "build",
@@ -70,6 +73,7 @@ IMPLEMENTED_COMMANDS = frozenset(
         "plugin",
         "ai",
         "knowledge",
+        "codex",
         "docs",
     }
 )
@@ -150,6 +154,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-push",
         action="store_true",
         help="Commit locally without pushing to GitHub.",
+    )
+    save_parser.add_argument(
+        "--finalize-codex",
+        action="store_true",
+        help="Finalize an active Codex capture after a successful save.",
     )
 
     agent_parser = subparsers.add_parser(
@@ -304,6 +313,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     register_knowledge_parser(subparsers)
+    register_codex_parser(subparsers)
 
     docs_parser = subparsers.add_parser(
         "docs",
@@ -680,6 +690,23 @@ def main(argv: list[str] | None = None) -> int:
                 commit_message=args.message,
                 push=not args.no_push,
             )
+            try:
+                from mde.codex_capture.service import (
+                    CodexCaptureError,
+                    CodexCaptureService,
+                )
+
+                collector = CodexCaptureService()
+                active_session = collector.active()
+                if active_session is not None:
+                    collector.add_note("mde save completed", "save")
+                    if args.finalize_codex:
+                        collector.finalize(
+                            summary=f"mde save: {args.message}",
+                            closure_reason="mde_save",
+                        )
+            except CodexCaptureError as error:
+                print(f"Warning: Codex capture update failed ({error.code}).")
             print("MDE save completed.")
             return 0
 
@@ -697,6 +724,8 @@ def main(argv: list[str] | None = None) -> int:
             return run_ai_command(args)
         if args.command == "knowledge":
             return run_knowledge_command(args)
+        if args.command == "codex":
+            return run_codex_command(args)
         if args.command == "docs":
             return run_docs_command(args, parser)
 

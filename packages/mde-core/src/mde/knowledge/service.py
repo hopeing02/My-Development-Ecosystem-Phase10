@@ -5,8 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from mde.knowledge.audit import KnowledgeAuditLogger
-from mde.knowledge.errors import SourceValidationError
+from mde.knowledge.errors import KnowledgeContractError, SourceValidationError
+from mde.knowledge.graph import KnowledgeGraphService
 from mde.knowledge.models import (
+    IndexFileResult,
     KnowledgeDocument,
     KnowledgeSource,
     ScanError,
@@ -41,8 +43,10 @@ class KnowledgeService:
         self.audit = KnowledgeAuditLogger(
             audit_log_dir or resolved_database_path.parent / "logs"
         )
+        self.graphs = KnowledgeGraphService(self.registry, self.repository)
         for source in self.registry.list():
             self.repository.upsert_source(source)
+        self.repository.resolve_all_links()
 
     def add_source(
         self,
@@ -72,13 +76,25 @@ class KnowledgeService:
         *,
         enabled: bool | None = None,
         allow_agent_access: bool | None = None,
+        writable_by_capture_app: bool | None = None,
+        read_only: bool | None = None,
+        editable_in_viewer: bool | None = None,
+        allow_link_rewrite: bool | None = None,
+        allow_as_shared_link_target: bool | None = None,
         confirm_sensitive_access: bool = False,
+        confirm_sensitive_write: bool = False,
     ) -> KnowledgeSource:
         source = self.registry.update(
             name_or_id,
             enabled=enabled,
             allow_agent_access=allow_agent_access,
+            writable_by_capture_app=writable_by_capture_app,
+            read_only=read_only,
+            editable_in_viewer=editable_in_viewer,
+            allow_link_rewrite=allow_link_rewrite,
+            allow_as_shared_link_target=allow_as_shared_link_target,
             confirm_sensitive_access=confirm_sensitive_access,
+            confirm_sensitive_write=confirm_sensitive_write,
         )
         self.repository.upsert_source(source)
         changes = {
@@ -86,11 +102,126 @@ class KnowledgeService:
             for key, value in {
                 "enabled": enabled,
                 "allow_agent_access": allow_agent_access,
+                "writable_by_capture_app": writable_by_capture_app,
+                "read_only": read_only,
+                "editable_in_viewer": editable_in_viewer,
+                "allow_link_rewrite": allow_link_rewrite,
+                "allow_as_shared_link_target": allow_as_shared_link_target,
             }.items()
             if value is not None
         }
         self.audit.source_updated(source, changes)
+        self.repository.resolve_all_links()
         return source
+
+    def index_file(
+        self,
+        source: str,
+        relative_path: str,
+        *,
+        require_capture_write: bool = True,
+    ) -> IndexFileResult:
+        """Safely index one Markdown file already stored inside a source."""
+
+        selected = self.registry.get(source)
+        if not selected.enabled:
+            raise KnowledgeContractError(
+                "SOURCE_DISABLED", "Knowledge source is disabled.", source=source
+            )
+        if require_capture_write and not selected.writable_by_capture_app:
+            raise KnowledgeContractError(
+                "SOURCE_NOT_WRITABLE",
+                "Knowledge source does not allow capture application writes.",
+                source=source,
+            )
+        requested = Path(relative_path)
+        if not relative_path.strip() or requested.is_absolute():
+            raise KnowledgeContractError(
+                "INVALID_RELATIVE_PATH",
+                "A source-relative Markdown path is required.",
+                path=relative_path,
+            )
+        try:
+            root = selected.path.resolve(strict=True)
+        except OSError as error:
+            raise KnowledgeContractError(
+                "SOURCE_PATH_NOT_FOUND",
+                "Knowledge source path was not found.",
+                source=source,
+            ) from error
+        try:
+            target = (root / requested).resolve(strict=True)
+        except FileNotFoundError as error:
+            raise KnowledgeContractError(
+                "FILE_NOT_FOUND", "Markdown file was not found.", path=relative_path
+            ) from error
+        try:
+            target.relative_to(root)
+        except ValueError as error:
+            raise KnowledgeContractError(
+                "PATH_OUTSIDE_SOURCE",
+                "The requested file is outside the registered knowledge source.",
+                source=source,
+                path=relative_path,
+            ) from error
+        if not target.is_file():
+            raise KnowledgeContractError(
+                "FILE_NOT_FOUND", "Markdown file was not found.", path=relative_path
+            )
+        if target.suffix.casefold() != ".md":
+            raise KnowledgeContractError(
+                "FILE_NOT_MARKDOWN",
+                "Only Markdown files can be indexed.",
+                path=relative_path,
+            )
+
+        normalized_path = target.relative_to(root).as_posix()
+        try:
+            scanned = scan_file(root, target)
+        except UnicodeError as error:
+            raise KnowledgeContractError(
+                "ENCODING_ERROR", "Markdown file must be UTF-8.", path=normalized_path
+            ) from error
+        except OSError as error:
+            raise KnowledgeContractError(
+                "FILE_READ_ERROR", "Unable to read Markdown file.", path=normalized_path
+            ) from error
+        previous = self.repository.document_state(selected.id).get(normalized_path)
+        changed = previous is None or previous[0] != scanned.content_hash
+        status = "added" if previous is None else "updated"
+        document_id = f"{selected.id}::{normalized_path}"
+        if changed:
+            self.repository.save_document(
+                KnowledgeDocument(
+                    id=document_id,
+                    source_id=selected.id,
+                    relative_path=normalized_path,
+                    absolute_path=scanned.absolute_path,
+                    title=scanned.parsed.title,
+                    content=scanned.parsed.content,
+                    tags=scanned.parsed.tags,
+                    aliases=scanned.parsed.aliases,
+                    outgoing_links=scanned.parsed.outgoing_links,
+                    modified_at=scanned.modified_at,
+                    indexed_at=utc_now(),
+                    content_hash=scanned.content_hash,
+                    file_size=scanned.file_size,
+                )
+            )
+        else:
+            status = "unchanged"
+        self.repository.resolve_all_links()
+        return IndexFileResult(
+            source=selected,
+            document_id=document_id,
+            relative_path=normalized_path,
+            indexed=changed,
+            status=status,
+            title=scanned.parsed.title,
+            tag_count=len(scanned.parsed.tags),
+            link_count=len(scanned.parsed.outgoing_links),
+            warnings=scanned.parsed.warnings,
+        )
 
     def remove_source(self, name_or_id: str) -> KnowledgeSource:
         source = self.registry.get(name_or_id)
@@ -160,6 +291,7 @@ class KnowledgeService:
 
         deleted_paths = set(previous) - discovered
         deleted = self.repository.delete_documents(source.id, deleted_paths)
+        self.repository.resolve_all_links()
         finished_at = utc_now()
         updated_source = self.registry.update(source.id, last_scanned_at=finished_at)
         self.repository.upsert_source(updated_source)

@@ -4,3 +4,5 @@ Version: 0.10.0
 Summary: Core automation engine for My Development Ecosystem
 Requires-Python: >=3.11
 Requires-Dist: PyYAML>=6.0
+Requires-Dist: fastapi<1,>=0.116
+Requires-Dist: uvicorn<1,>=0.35

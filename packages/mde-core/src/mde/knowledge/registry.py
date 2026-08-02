@@ -14,7 +14,9 @@ from mde.knowledge.models import (
     SOURCE_CATEGORIES,
     SOURCE_TYPES,
     KnowledgeSource,
+    capture_write_default,
     category_defaults,
+    viewer_edit_defaults,
 )
 
 
@@ -75,6 +77,7 @@ class SourceRegistry:
             raise SourceValidationError(f"Source path already exists: {normalized}")
 
         sensitive, allow_agent_access = category_defaults(category)
+        editable_in_viewer, allow_link_rewrite = viewer_edit_defaults(category)
         source = KnowledgeSource(
             id=self._next_id(sources),
             name=clean_name,
@@ -83,6 +86,9 @@ class SourceRegistry:
             source_type=source_type,
             sensitive=sensitive,
             allow_agent_access=allow_agent_access,
+            writable_by_capture_app=capture_write_default(category),
+            editable_in_viewer=editable_in_viewer,
+            allow_link_rewrite=allow_link_rewrite,
         )
         self._save([*sources, source])
         return source
@@ -93,7 +99,13 @@ class SourceRegistry:
         *,
         enabled: bool | None = None,
         allow_agent_access: bool | None = None,
+        writable_by_capture_app: bool | None = None,
+        read_only: bool | None = None,
+        editable_in_viewer: bool | None = None,
+        allow_link_rewrite: bool | None = None,
+        allow_as_shared_link_target: bool | None = None,
         confirm_sensitive_access: bool = False,
+        confirm_sensitive_write: bool = False,
         last_scanned_at: datetime | None = None,
     ) -> KnowledgeSource:
         sources = list(self._load())
@@ -108,6 +120,36 @@ class SourceRegistry:
                 "Enabling agent access for a sensitive source requires "
                 "--confirm-sensitive-access."
             )
+        if (
+            current.sensitive
+            and editable_in_viewer is True
+            and not current.editable_in_viewer
+            and not confirm_sensitive_write
+        ):
+            raise SourceValidationError(
+                "Enabling Viewer edits for a sensitive source requires "
+                "--confirm-sensitive-write."
+            )
+        if (
+            current.sensitive
+            and allow_link_rewrite is True
+            and not current.allow_link_rewrite
+            and not confirm_sensitive_write
+        ):
+            raise SourceValidationError(
+                "Enabling link rewrites for a sensitive source requires "
+                "--confirm-sensitive-write."
+            )
+        if (
+            current.sensitive
+            and writable_by_capture_app is True
+            and not current.writable_by_capture_app
+            and not confirm_sensitive_write
+        ):
+            raise SourceValidationError(
+                "Enabling capture writes for a sensitive source requires "
+                "--confirm-sensitive-write."
+            )
         updated = replace(
             current,
             enabled=current.enabled if enabled is None else enabled,
@@ -115,6 +157,27 @@ class SourceRegistry:
                 current.allow_agent_access
                 if allow_agent_access is None
                 else allow_agent_access
+            ),
+            writable_by_capture_app=(
+                current.writable_by_capture_app
+                if writable_by_capture_app is None
+                else writable_by_capture_app
+            ),
+            read_only=current.read_only if read_only is None else read_only,
+            editable_in_viewer=(
+                current.editable_in_viewer
+                if editable_in_viewer is None
+                else editable_in_viewer
+            ),
+            allow_link_rewrite=(
+                current.allow_link_rewrite
+                if allow_link_rewrite is None
+                else allow_link_rewrite
+            ),
+            allow_as_shared_link_target=(
+                current.allow_as_shared_link_target
+                if allow_as_shared_link_target is None
+                else allow_as_shared_link_target
             ),
             last_scanned_at=(
                 current.last_scanned_at if last_scanned_at is None else last_scanned_at
@@ -167,6 +230,12 @@ class SourceRegistry:
             "enabled": source.enabled,
             "sensitive": source.sensitive,
             "allow_agent_access": source.allow_agent_access,
+            "writable_by_capture_app": source.writable_by_capture_app,
+            "read_only": source.read_only,
+            "editable_in_viewer": source.editable_in_viewer,
+            "allow_link_rewrite": source.allow_link_rewrite,
+            "allow_document_create": source.allow_document_create,
+            "allow_as_shared_link_target": source.allow_as_shared_link_target,
             "created_at": source.created_at.isoformat(),
             "last_scanned_at": (
                 source.last_scanned_at.isoformat() if source.last_scanned_at else None
@@ -178,6 +247,7 @@ class SourceRegistry:
         if not isinstance(data, dict):
             raise SourceValidationError("Invalid source registry entry.")
         try:
+            editable_default, link_default = viewer_edit_defaults(str(data["category"]))
             return KnowledgeSource(
                 id=str(data["id"]),
                 name=str(data["name"]),
@@ -187,6 +257,23 @@ class SourceRegistry:
                 enabled=bool(data["enabled"]),
                 sensitive=bool(data["sensitive"]),
                 allow_agent_access=bool(data["allow_agent_access"]),
+                writable_by_capture_app=bool(
+                    data.get(
+                        "writable_by_capture_app",
+                        capture_write_default(str(data["category"])),
+                    )
+                ),
+                read_only=bool(data.get("read_only", False)),
+                editable_in_viewer=bool(
+                    data.get("editable_in_viewer", editable_default)
+                ),
+                allow_link_rewrite=bool(
+                    data.get("allow_link_rewrite", link_default)
+                ),
+                allow_document_create=bool(data.get("allow_document_create", False)),
+                allow_as_shared_link_target=bool(
+                    data.get("allow_as_shared_link_target", False)
+                ),
                 created_at=datetime.fromisoformat(str(data["created_at"])),
                 last_scanned_at=(
                     datetime.fromisoformat(str(data["last_scanned_at"]))

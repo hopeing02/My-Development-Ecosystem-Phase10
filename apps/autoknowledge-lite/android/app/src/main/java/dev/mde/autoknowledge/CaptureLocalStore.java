@@ -15,6 +15,8 @@ interface CaptureLocalStore {
 
     void markRetryFailed(String hash);
 
+    void markPermanentFailure(String hash);
+
     void removePending(String hash);
 
     int pendingCount();

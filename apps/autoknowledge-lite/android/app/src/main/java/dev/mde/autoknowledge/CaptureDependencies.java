@@ -12,7 +12,9 @@ final class CaptureDependencies {
         Context application = context.getApplicationContext();
         settings = new CaptureSettingsRepository(application);
         localStore = new AndroidCaptureLocalStore(application);
-        CaptureRepository repository = new LegacyClipboardCaptureRepository(settings);
+        CaptureRepository repository = settings.useLegacyCaptureApi()
+                ? new LegacyClipboardCaptureRepository(settings)
+                : new UnifiedCaptureRepository(settings, new DefaultCaptureApiRequestMapper());
         captureUseCase = new CaptureClipboardTextUseCase(
                 new ClipboardTextNormalizer(),
                 new ClipboardCaptureValidator(),

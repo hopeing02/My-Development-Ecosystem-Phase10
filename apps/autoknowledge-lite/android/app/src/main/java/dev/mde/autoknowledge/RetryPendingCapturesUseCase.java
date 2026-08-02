@@ -22,6 +22,9 @@ final class RetryPendingCapturesUseCase {
                     localStore.removePending(request.contentHash);
                     localStore.recordHash(request.contentHash);
                     saved++;
+                } else if (result.status == CaptureStatus.FAILED
+                        || result.status == CaptureStatus.BLOCKED_SENSITIVE) {
+                    localStore.markPermanentFailure(request.contentHash);
                 }
             } catch (Exception error) {
                 localStore.markRetryFailed(request.contentHash);

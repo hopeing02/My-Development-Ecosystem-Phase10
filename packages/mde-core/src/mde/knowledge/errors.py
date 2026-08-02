@@ -21,3 +21,12 @@ class SensitiveAccessError(KnowledgeError, PermissionError):
 
 class KnowledgeDatabaseError(KnowledgeError):
     """Raised when the local SQLite index cannot be opened or migrated."""
+
+
+class KnowledgeContractError(KnowledgeError):
+    """Machine-readable integration contract error."""
+
+    def __init__(self, code: str, message: str, **details: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.details = details

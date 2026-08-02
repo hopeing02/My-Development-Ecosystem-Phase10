@@ -5,6 +5,7 @@ enum CaptureStatus {
     DUPLICATE,
     SKIPPED,
     QUEUED,
+    MIGRATION_FAILED,
     FAILED,
     BLOCKED_SENSITIVE
 }

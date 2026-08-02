@@ -8,6 +8,7 @@ final class CaptureSettingsRepository {
     static final String AUTO_CAPTURE_STATE = "auto_capture_state";
     static final String PARENT_DOCUMENT_ID = "parent_document_id";
     static final String PARENT_DOCUMENT_LABEL = "parent_document_label";
+    static final String USE_LEGACY_CAPTURE_API = "use_legacy_capture_api";
     private final SharedPreferences preferences;
 
     CaptureSettingsRepository(Context context) {
@@ -65,5 +66,13 @@ final class CaptureSettingsRepository {
 
     boolean canEnableAutoCapture() {
         return !serverUrl().isEmpty() && SharePayload.folderIndex(targetFolder()) >= 0;
+    }
+
+    boolean useLegacyCaptureApi() {
+        return preferences.getBoolean(USE_LEGACY_CAPTURE_API, false);
+    }
+
+    void setUseLegacyCaptureApi(boolean enabled) {
+        preferences.edit().putBoolean(USE_LEGACY_CAPTURE_API, enabled).apply();
     }
 }

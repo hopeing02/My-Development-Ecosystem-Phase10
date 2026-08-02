@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -44,6 +45,18 @@ def test_openai_analyzer_uses_responses_api() -> None:
     assert calls[0]["model"] == "test-openai"
 
 
+def test_openai_analyzer_defers_sdk_import_until_analysis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(sys.modules, "openai", None)
+
+    analyzer = OpenAIKnowledgeAnalyzer(model="test-openai")
+
+    assert analyzer.client is None
+    with pytest.raises(AnalysisError, match="OpenAI SDK is not installed"):
+        analyzer.analyze(share_record())
+
+
 def test_claude_analyzer_uses_messages_api() -> None:
     calls = []
 
@@ -61,6 +74,18 @@ def test_claude_analyzer_uses_messages_api() -> None:
     assert result.provider == "claude:test-claude"
     assert result.summary == "Summary"
     assert calls[0]["model"] == "test-claude"
+
+
+def test_claude_analyzer_defers_sdk_import_until_analysis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(sys.modules, "anthropic", None)
+
+    analyzer = ClaudeKnowledgeAnalyzer(model="test-claude")
+
+    assert analyzer.client is None
+    with pytest.raises(AnalysisError, match="Anthropic SDK is not installed"):
+        analyzer.analyze(share_record())
 
 
 def test_provider_selection_defaults_to_local(monkeypatch: pytest.MonkeyPatch) -> None:

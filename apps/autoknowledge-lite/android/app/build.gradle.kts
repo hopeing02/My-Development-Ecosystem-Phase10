@@ -20,8 +20,13 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    sourceSets["test"].resources.srcDir(
+        "../../../../packages/capture-core/test-vectors"
+    )
 }
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20250517")
 }

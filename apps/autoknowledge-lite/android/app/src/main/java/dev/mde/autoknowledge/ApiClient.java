@@ -7,6 +7,7 @@ import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -67,6 +68,58 @@ final class ApiClient {
         }
     }
 
+    static CaptureResult submitCapture(
+            String serverUrl,
+            CaptureEnvelopeDto payload,
+            String contentHash
+    ) throws IOException, JSONException {
+        URL endpoint = new URL(normalize(serverUrl) + "/api/v1/captures");
+        HttpURLConnection connection = (HttpURLConnection) endpoint.openConnection();
+        connection.setRequestMethod("POST");
+        connection.setConnectTimeout(10_000);
+        connection.setReadTimeout(20_000);
+        connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+        connection.setRequestProperty("Accept", "application/json");
+        connection.setDoOutput(true);
+
+        byte[] encoded = payload.toJson().toString().getBytes(StandardCharsets.UTF_8);
+        try (OutputStream output = connection.getOutputStream()) {
+            output.write(encoded);
+        }
+
+        int status = connection.getResponseCode();
+        String responseBody;
+        try {
+            responseBody = readBody(
+                    status >= 400 ? connection.getErrorStream() : connection.getInputStream()
+            );
+        } finally {
+            connection.disconnect();
+        }
+        if (status >= 500) {
+            throw new IOException("Server returned HTTP " + status);
+        }
+        JSONObject response = responseBody.isEmpty()
+                ? new JSONObject()
+                : new JSONObject(responseBody);
+        if (status >= 400) {
+            JSONObject error = response.optJSONObject("error");
+            String code = error == null ? "" : error.optString("code");
+            if ("SENSITIVE_CONTENT_DETECTED".equals(code)) {
+                return new CaptureResult(CaptureStatus.BLOCKED_SENSITIVE, contentHash);
+            }
+            return new CaptureResult(CaptureStatus.FAILED, contentHash);
+        }
+        String responseStatus = response.optString("status");
+        if ("duplicate".equals(responseStatus)) {
+            return new CaptureResult(CaptureStatus.DUPLICATE, contentHash);
+        }
+        if ("saved".equals(responseStatus)) {
+            return new CaptureResult(CaptureStatus.SAVED, contentHash);
+        }
+        throw new IOException("Server returned an invalid capture response");
+    }
+
     static List<KnowledgeDocumentCandidate> searchDocuments(
             String serverUrl,
             String query
@@ -113,5 +166,21 @@ final class ApiClient {
 
     private static String normalize(String value) {
         return value.trim().replaceFirst("/+$", "");
+    }
+
+    private static String readBody(InputStream input) throws IOException {
+        if (input == null) {
+            return "";
+        }
+        StringBuilder body = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(input, StandardCharsets.UTF_8)
+        )) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                body.append(line);
+            }
+        }
+        return body.toString();
     }
 }

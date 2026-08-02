@@ -160,6 +160,9 @@ public final class CapturePipelineTest {
         public void markRetryFailed(String hash) {}
 
         @Override
+        public void markPermanentFailure(String hash) {}
+
+        @Override
         public void removePending(String hash) {
             pending.removeIf(request -> request.contentHash.equals(hash));
         }
