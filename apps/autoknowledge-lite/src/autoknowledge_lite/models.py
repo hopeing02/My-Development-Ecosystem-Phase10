@@ -44,6 +44,13 @@ class ShareRequest(BaseModel):
     source_url: AnyHttpUrl | None = None
     shared_at: datetime | None = None
     target_folder: VaultFolder = DEFAULT_VAULT_FOLDER
+    capture_origin: Literal["api", "pc_clipboard", "android_clipboard"] = "api"
+    parent_document_id: str | None = Field(default=None, max_length=2000)
+    source_type: Literal["chatgpt", "codex", "general"] | None = None
+    source_app: str | None = Field(default=None, max_length=100)
+    content_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    captured_at: datetime | None = None
+    device_id: str | None = Field(default=None, max_length=200)
 
     @field_validator("content")
     @classmethod
@@ -61,6 +68,14 @@ class ShareRequest(BaseModel):
         normalized = value.strip()
         return normalized or None
 
+    @field_validator("parent_document_id")
+    @classmethod
+    def normalize_parent_document_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
 
 class ShareRecord(BaseModel):
     """Persisted representation of an accepted share request."""
@@ -73,6 +88,14 @@ class ShareRecord(BaseModel):
     source_url: str | None = None
     shared_at: datetime | None = None
     target_folder: VaultFolder = DEFAULT_VAULT_FOLDER
+    capture_origin: Literal["api", "pc_clipboard", "android_clipboard"] = "api"
+    parent_document_id: str | None = None
+    source_type: Literal["chatgpt", "codex", "general"] | None = None
+    source_app: str | None = None
+    content_hash: str | None = None
+    captured_at: datetime | None = None
+    device_id: str | None = None
+    document_id: str | None = None
     processed_at: datetime | None = None
     analysis: KnowledgeAnalysis | None = None
     markdown: str | None = None

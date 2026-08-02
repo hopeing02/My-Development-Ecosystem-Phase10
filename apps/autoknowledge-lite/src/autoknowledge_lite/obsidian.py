@@ -30,14 +30,29 @@ class ObsidianNoteStore:
         self.notes_dir = self.vault_dir / DEFAULT_VAULT_FOLDER
 
     def save(self, record: ShareRecord, markdown: str) -> Path:
+        if record.source_type and record.content_hash:
+            timestamp = (record.captured_at or record.received_at).strftime(
+                "%Y-%m-%d-%H%M%S"
+            )
+            filename = (
+                f"{timestamp}-{record.source_type}-clip-"
+                f"{record.content_hash[:8]}.md"
+            )
+            destination_dir = self._destination_dir(record.target_folder)
+            destination = destination_dir / INVALID_FILENAME.sub("-", filename)
+            return self._atomic_write(destination, markdown)
         title = record.title or "untitled-knowledge"
         slug = _safe_slug(title)
         date = record.received_at.date().isoformat()
         destination_dir = self._destination_dir(record.target_folder)
         destination = destination_dir / f"{date}-{slug}-{record.job_id[:8]}.md"
+        return self._atomic_write(destination, markdown)
+
+    @staticmethod
+    def _atomic_write(destination: Path, markdown: str) -> Path:
         temporary = destination.with_suffix(".md.tmp")
         try:
-            destination_dir.mkdir(parents=True, exist_ok=True)
+            destination.parent.mkdir(parents=True, exist_ok=True)
             temporary.write_text(markdown, encoding="utf-8")
             temporary.replace(destination)
         except OSError as error:

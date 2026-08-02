@@ -41,6 +41,28 @@ public final class SharePayloadTest {
         );
         assertEquals("https://example.com/chat", payload.sourceUrl);
         assertEquals("20_Learning", payload.targetFolder);
+        assertEquals("android_clipboard", payload.captureOrigin);
+        assertEquals("", payload.parentDocumentId);
+    }
+
+    @Test
+    public void clipboardPayloadCarriesSelectedParentDocument() {
+        SharePayload payload = SharePayload.fromClipboard(
+                "새 문서 내용",
+                "40_Reference",
+                "ks-002::20_Learning/상위.md"
+        );
+
+        assertEquals("android_clipboard", payload.captureOrigin);
+        assertEquals("ks-002::20_Learning/상위.md", payload.parentDocumentId);
+    }
+
+    @Test
+    public void shareMenuPayloadDoesNotOptIntoClipboardParentFallback() {
+        SharePayload payload = SharePayload.from("공유", "본문", "10_Life");
+
+        assertEquals("api", payload.captureOrigin);
+        assertEquals("", payload.parentDocumentId);
     }
 
     @Test
@@ -55,5 +77,25 @@ public final class SharePayloadTest {
     public void exposesSixApprovedFolders() {
         assertEquals(6, SharePayload.VAULT_FOLDERS.length);
         assertEquals("90_Archive", SharePayload.VAULT_FOLDERS[5]);
+    }
+
+    @Test
+    public void capturePayloadCarriesSourceAndDeduplicationMetadata() {
+        CaptureRequest request = new CaptureRequest(
+                CaptureSource.CODEX,
+                "Codex 응답 본문",
+                "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+                "40_Reference",
+                "parent-id",
+                "2026-08-02T20:43:00+09:00",
+                "device-id"
+        );
+
+        SharePayload payload = SharePayload.fromCapture(request);
+
+        assertEquals("codex", payload.sourceType);
+        assertEquals("codex_remote_android", payload.sourceApp);
+        assertEquals(request.contentHash, payload.contentHash);
+        assertEquals("parent-id", payload.parentDocumentId);
     }
 }

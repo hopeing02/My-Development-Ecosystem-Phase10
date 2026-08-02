@@ -36,6 +36,19 @@ def render_markdown(record: ShareRecord) -> str:
         "reviewed": metadata.reviewed,
         "topics": [f"[[{topic}]]" for topic in metadata.topics],
     }
+    if record.source_type:
+        properties.update(
+            {
+                "source_type": record.source_type,
+                "source_app": record.source_app or "",
+                "capture_type": "clipboard_item",
+                "capture_device": "android",
+                "capture_method": "android_clipboard",
+                "captured_at": (record.captured_at or record.received_at).isoformat(),
+                "content_hash": record.content_hash or "",
+                "parent_document": record.parent_document_id,
+            }
+        )
     body = (
         f"# {title}\n\n"
         "## Summary\n\n"

@@ -339,6 +339,8 @@ def _concept_name(tag: str) -> str:
 
 def _decode_scalar(value: str) -> object:
     stripped = value.strip()
+    if stripped == "null":
+        return None
     if stripped in {"true", "false"}:
         return stripped == "true"
     if stripped.startswith('"'):
@@ -350,6 +352,8 @@ def _decode_scalar(value: str) -> object:
 
 
 def _encode_scalar(value: object) -> str:
+    if value is None:
+        return "null"
     if isinstance(value, bool):
         return "true" if value else "false"
     return json.dumps(str(value), ensure_ascii=False)

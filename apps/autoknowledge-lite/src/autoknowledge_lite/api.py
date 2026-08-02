@@ -6,13 +6,16 @@ import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import Lock
+from typing import Any, Protocol
 from uuid import uuid4
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, status
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, status
 from fastapi.responses import FileResponse, HTMLResponse
 
 from autoknowledge_lite.ai import (
     AnalysisError,
+    DeterministicKnowledgeAnalyzer,
     KnowledgeAnalyzer,
     analyzer_from_environment,
 )
@@ -24,7 +27,9 @@ from autoknowledge_lite.content import (
 )
 from autoknowledge_lite.git_sync import GitNoteSync, GitSyncError, NoteSync
 from autoknowledge_lite.markdown import MarkdownRenderError, render_markdown
+from autoknowledge_lite.mde_client import MDEClientError, MDEKnowledgeClient
 from autoknowledge_lite.models import (
+    KnowledgeAnalysis,
     MarkdownRequest,
     MarkdownResult,
     ProcessedShare,
@@ -43,7 +48,7 @@ from autoknowledge_lite.store import (
 )
 
 LOGGER = logging.getLogger(__name__)
-APP_VERSION = "0.2.1"
+APP_VERSION = "0.2.2"
 ANDROID_APK_PATH = (
     Path(__file__).resolve().parents[2]
     / "android"
@@ -56,6 +61,20 @@ ANDROID_APK_PATH = (
 )
 
 
+class KnowledgeIndexer(Protocol):
+    """Index one Vault-relative Markdown file through the MDE contract."""
+
+    def index_file(self, source: str, relative_path: str) -> dict[str, Any]: ...
+
+    def search_documents(
+        self, source: str, query: str, *, limit: int = 20
+    ) -> tuple[Any, ...]: ...
+
+    def link_child(
+        self, source: str, parent_document_id: str, target_document_id: str
+    ) -> dict[str, Any]: ...
+
+
 def create_app(
     store: JsonShareStore | None = None,
     analyzer: KnowledgeAnalyzer | None = None,
@@ -63,6 +82,7 @@ def create_app(
     content_fetcher: ContentFetcher | None = None,
     note_store: ObsidianNoteStore | None = None,
     git_sync: NoteSync | None = None,
+    mde_client: KnowledgeIndexer | None = None,
     android_apk_path: Path | None = None,
 ) -> FastAPI:
     """Create an API application with an injectable persistence boundary."""
@@ -72,6 +92,13 @@ def create_app(
     web_content_fetcher = content_fetcher or HttpContentFetcher()
     obsidian_store = note_store or ObsidianNoteStore()
     note_sync = git_sync or GitNoteSync(obsidian_store.vault_dir)
+    knowledge_indexer = mde_client or MDEKnowledgeClient()
+    knowledge_source = (
+        os.getenv("AUTOKNOWLEDGE_MDE_SOURCE", "autoknowledge-vault").strip()
+        or "autoknowledge-vault"
+    )
+    fallback_analyzer = DeterministicKnowledgeAnalyzer()
+    index_lock = Lock()
     apk_path = android_apk_path or ANDROID_APK_PATH
     automatic_processing = (
         _environment_flag("AUTOKNOWLEDGE_AUTO_PROCESS", default=True)
@@ -85,12 +112,40 @@ def create_app(
     )
 
     @application.get("/v1/status", response_model=StatusResponse)
-    def get_status() -> StatusResponse:
+    async def get_status() -> StatusResponse:
         return StatusResponse(version=APP_VERSION)
 
     @application.get("/pc", response_class=HTMLResponse)
-    def get_pc_capture_page() -> str:
+    async def get_pc_capture_page() -> str:
         return PC_CAPTURE_HTML
+
+    @application.get("/v1/knowledge/documents")
+    def search_parent_documents(
+        query: str = Query(..., alias="q", min_length=1, max_length=200),
+        limit: int = Query(20, ge=1, le=50),
+    ) -> dict[str, object]:
+        try:
+            documents = knowledge_indexer.search_documents(
+                knowledge_source, query.strip(), limit=limit
+            )
+        except MDEClientError as error:
+            LOGGER.exception("MDE parent document search failed")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Knowledge document search is unavailable.",
+            ) from error
+        return {
+            "documents": [
+                {
+                    "id": item.id,
+                    "source_id": item.source_id,
+                    "title": item.title,
+                    "relative_path": item.relative_path,
+                    "snippet": item.snippet,
+                }
+                for item in documents
+            ]
+        }
 
     @application.get("/downloads/autoknowledge-lite.apk")
     def download_android_apk() -> FileResponse:
@@ -102,7 +157,7 @@ def create_app(
         return FileResponse(
             apk_path,
             media_type="application/vnd.android.package-archive",
-            filename="autoknowledge-lite-v0.2.0.apk",
+            filename=f"autoknowledge-lite-v{APP_VERSION}.apk",
         )
 
     @application.post(
@@ -110,11 +165,18 @@ def create_app(
         response_model=ShareAccepted,
         status_code=status.HTTP_202_ACCEPTED,
     )
-    def create_share(
+    async def create_share(
         request: ShareRequest,
         background_tasks: BackgroundTasks,
     ) -> ShareAccepted:
         received_at = datetime.now(timezone.utc)
+        parent_document_id = request.parent_document_id
+        if (
+            request.capture_origin in {"pc_clipboard", "android_clipboard"}
+            and parent_document_id is None
+        ):
+            previous = share_store.latest_saved(capture_origin=request.capture_origin)
+            parent_document_id = previous.document_id if previous else None
         record = ShareRecord(
             job_id=str(uuid4()),
             received_at=received_at,
@@ -123,6 +185,13 @@ def create_app(
             source_url=str(request.source_url) if request.source_url else None,
             shared_at=request.shared_at,
             target_folder=request.target_folder,
+            capture_origin=request.capture_origin,
+            parent_document_id=parent_document_id,
+            source_type=request.source_type,
+            source_app=request.source_app,
+            content_hash=request.content_hash,
+            captured_at=request.captured_at,
+            device_id=request.device_id,
         )
         try:
             share_store.save(record)
@@ -145,33 +214,98 @@ def create_app(
 
         try:
             record = enrich_record(share_store.load(job_id))
-            analysis = knowledge_analyzer.analyze(record)
-            processed_at = datetime.now(timezone.utc)
-            processed = record.model_copy(
-                update={
-                    "status": "processed",
-                    "processed_at": processed_at,
-                    "analysis": analysis,
-                }
-            )
-            markdown = render_markdown(processed)
-            note_path = obsidian_store.save(processed, markdown)
-            share_store.update(
-                processed.model_copy(
-                    update={"markdown": markdown, "note_path": str(note_path)}
+            local_analysis = fallback_analyzer.analyze(record)
+            persist_processed_note(record, local_analysis)
+            if (
+                getattr(knowledge_analyzer, "provider", None)
+                == fallback_analyzer.provider
+            ):
+                LOGGER.info("Automatically processed share job %s", job_id)
+                return
+            try:
+                analysis = knowledge_analyzer.analyze(record)
+            except AnalysisError:
+                LOGGER.exception(
+                    "Configured analysis failed for share job %s; keeping local result",
+                    job_id,
                 )
-            )
-            note_sync.sync(note_path)
+                return
+            persist_processed_note(record, analysis)
             LOGGER.info("Automatically processed share job %s", job_id)
         except (
             AnalysisError,
-            GitSyncError,
             MarkdownRenderError,
             ObsidianStoreError,
             ShareNotFoundError,
             ShareStoreError,
         ):
             LOGGER.exception("Automatic processing failed for share job %s", job_id)
+
+    def persist_processed_note(
+        record: ShareRecord,
+        analysis: KnowledgeAnalysis,
+    ) -> ShareRecord:
+        """Persist, index, and synchronize one analyzed note."""
+
+        processed = record.model_copy(
+            update={
+                "status": "processed",
+                "processed_at": datetime.now(timezone.utc),
+                "analysis": analysis,
+            }
+        )
+        markdown = render_markdown(processed)
+        note_path = obsidian_store.save(processed, markdown)
+        indexed = index_note(note_path)
+        document_id = (
+            str(indexed["documentId"])
+            if indexed and indexed.get("documentId")
+            else None
+        )
+        saved = processed.model_copy(
+            update={
+                "markdown": markdown,
+                "note_path": str(note_path),
+                "document_id": document_id,
+            }
+        )
+        share_store.update(saved)
+        if saved.parent_document_id and saved.document_id:
+            try:
+                knowledge_indexer.link_child(
+                    knowledge_source,
+                    saved.parent_document_id,
+                    saved.document_id,
+                )
+            except MDEClientError:
+                LOGGER.exception(
+                    "Unable to link parent %s to note %s",
+                    saved.parent_document_id,
+                    saved.document_id,
+                )
+        try:
+            note_sync.sync(note_path)
+        except GitSyncError:
+            LOGGER.exception(
+                "Git synchronization failed for share job %s", record.job_id
+            )
+        return saved
+
+    def index_note(note_path: Path) -> dict[str, Any] | None:
+        """Index a saved note without rolling back the durable Markdown file."""
+
+        try:
+            relative_path = note_path.resolve().relative_to(
+                obsidian_store.vault_dir.resolve()
+            )
+            with index_lock:
+                return knowledge_indexer.index_file(
+                    knowledge_source,
+                    relative_path.as_posix(),
+                )
+        except (MDEClientError, OSError, ValueError):
+            LOGGER.exception("MDE indexing failed for note %s", note_path.name)
+            return None
 
     def enrich_record(record: ShareRecord) -> ShareRecord:
         if not should_fetch_content(record):
@@ -277,6 +411,7 @@ def create_app(
             note_sync.sync(note_path)
         except GitSyncError:
             LOGGER.exception("Git synchronization failed for share job %s", job_id)
+        index_note(note_path)
         return MarkdownResult(
             job_id=job_id,
             markdown=markdown,

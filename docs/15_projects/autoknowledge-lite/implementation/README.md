@@ -22,3 +22,4 @@
 - `CODE-003-android-apk-download.md`: 고정 APK 한 파일의 휴대폰 다운로드
 - `CODE-004-pc-capture-page.md`: PC 클립보드·직접 입력과 고정 폴더 저장 화면
 - `CODE-005-obsidian-knowledge-graph.md`: Obsidian 메타데이터·MOC·Bases 자동화
+- `CODE-006-android-clipboard-auto-capture.md`: Android 클립보드 자동 감지·공통 저장 파이프라인·대기열

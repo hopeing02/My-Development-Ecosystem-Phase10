@@ -52,6 +52,21 @@ class JsonShareStore:
     def update(self, record: ShareRecord) -> Path:
         return self._write(record, require_existing=True)
 
+    def latest_saved(self, *, capture_origin: str) -> ShareRecord | None:
+        """Return the latest indexed record for one capture origin."""
+
+        candidates: list[ShareRecord] = []
+        for path in self.root.glob("*.json"):
+            try:
+                record = ShareRecord.model_validate_json(
+                    path.read_text(encoding="utf-8")
+                )
+            except (OSError, ValidationError, ValueError):
+                continue
+            if record.capture_origin == capture_origin and record.document_id:
+                candidates.append(record)
+        return max(candidates, key=lambda item: item.received_at, default=None)
+
     def _write(self, record: ShareRecord, *, require_existing: bool) -> Path:
         destination = self.root / f"{record.job_id}.json"
         temporary = destination.with_suffix(".tmp")

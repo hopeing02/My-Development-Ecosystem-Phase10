@@ -10,6 +10,11 @@
 
 선택 필드 `target_folder`는 6개 고정 Vault 폴더만 허용하고 생략 시 `00_Inbox`를 사용한다. 허용값 밖의 경로는 `422`로 거부한다.
 
+Android 클립보드 수집기는 기존 계약을 유지하면서 선택 필드 `source_type`,
+`source_app`, `content_hash`, `captured_at`, `device_id`를 보낸다. 서버는 이 값을
+작업 JSON과 Markdown 메타데이터에 보존한다. 이 필드는 2단계 공통 Capture API가
+아니며 기존 `/v1/share`의 하위 호환 확장이다.
+
 URL만 공유되면 공개 웹페이지 본문을 보강한다. 내부망 주소, 비텍스트 응답, 2MB 초과 응답은 차단한다.
 
 ## GET `/downloads/autoknowledge-lite.apk`

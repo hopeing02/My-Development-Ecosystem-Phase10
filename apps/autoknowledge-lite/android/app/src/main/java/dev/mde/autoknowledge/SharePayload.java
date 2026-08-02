@@ -19,12 +19,38 @@ final class SharePayload {
     final String content;
     final String sourceUrl;
     final String targetFolder;
+    final String captureOrigin;
+    final String parentDocumentId;
+    final String sourceType;
+    final String sourceApp;
+    final String contentHash;
+    final String capturedAt;
+    final String deviceId;
 
-    private SharePayload(String title, String content, String sourceUrl, String targetFolder) {
+    private SharePayload(
+            String title,
+            String content,
+            String sourceUrl,
+            String targetFolder,
+            String captureOrigin,
+            String parentDocumentId,
+            String sourceType,
+            String sourceApp,
+            String contentHash,
+            String capturedAt,
+            String deviceId
+    ) {
         this.title = title;
         this.content = content;
         this.sourceUrl = sourceUrl;
         this.targetFolder = normalizeTargetFolder(targetFolder);
+        this.captureOrigin = captureOrigin;
+        this.parentDocumentId = parentDocumentId == null ? "" : parentDocumentId.trim();
+        this.sourceType = sourceType;
+        this.sourceApp = sourceApp;
+        this.contentHash = contentHash;
+        this.capturedAt = capturedAt;
+        this.deviceId = deviceId;
     }
 
     static SharePayload from(CharSequence subject, CharSequence sharedText) {
@@ -40,7 +66,19 @@ final class SharePayload {
         String title = subject == null ? "" : subject.toString().trim();
         Matcher matcher = URL_PATTERN.matcher(content);
         String sourceUrl = matcher.find() ? trimTrailingPunctuation(matcher.group()) : "";
-        return new SharePayload(title, content, sourceUrl, targetFolder);
+        return new SharePayload(
+                title,
+                content,
+                sourceUrl,
+                targetFolder,
+                "api",
+                "",
+                "general",
+                "android_share",
+                "",
+                "",
+                ""
+        );
     }
 
     static SharePayload fromClipboard(CharSequence clipboardText) {
@@ -48,6 +86,14 @@ final class SharePayload {
     }
 
     static SharePayload fromClipboard(CharSequence clipboardText, String targetFolder) {
+        return fromClipboard(clipboardText, targetFolder, "");
+    }
+
+    static SharePayload fromClipboard(
+            CharSequence clipboardText,
+            String targetFolder,
+            String parentDocumentId
+    ) {
         String content = clipboardText == null ? "" : clipboardText.toString().trim();
         int lineBreak = content.indexOf('\n');
         String firstLine = (lineBreak >= 0 ? content.substring(0, lineBreak) : content).trim();
@@ -57,7 +103,36 @@ final class SharePayload {
         if (title.length() > 80) {
             title = title.substring(0, 80);
         }
-        return from(title, content, targetFolder);
+        SharePayload base = from(title, content, targetFolder);
+        return new SharePayload(
+                base.title,
+                base.content,
+                base.sourceUrl,
+                base.targetFolder,
+                "android_clipboard",
+                parentDocumentId,
+                "general",
+                "android_clipboard",
+                "",
+                "",
+                ""
+        );
+    }
+
+    static SharePayload fromCapture(CaptureRequest request) {
+        return new SharePayload(
+                request.source.titlePrefix,
+                request.content,
+                "",
+                request.targetFolder,
+                "android_clipboard",
+                request.parentDocumentId,
+                request.source.sourceType,
+                request.source.sourceApp,
+                request.contentHash,
+                request.capturedAt,
+                request.deviceId
+        );
     }
 
     static int folderIndex(String value) {
