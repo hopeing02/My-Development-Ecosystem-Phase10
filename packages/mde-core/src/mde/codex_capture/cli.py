@@ -4,6 +4,7 @@ import argparse
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from mde.codex_capture.service import CodexCaptureError, CodexCaptureService
@@ -59,6 +60,47 @@ def register_parser(
     note.add_argument("--session")
     note.add_argument("--type", default="progress")
     note.add_argument("--message", required=True)
+
+    sessions = actions.add_parser(
+        "sessions", help="Manage consent-based Codex public conversation adapters."
+    )
+    session_actions = sessions.add_subparsers(dest="sessions_action")
+    session_actions.add_parser(
+        "discover", help="Discover threads through official app-server APIs."
+    )
+    session_actions.add_parser("list", help="List MDE-to-Codex session links.")
+    inspect = session_actions.add_parser(
+        "inspect", help="Inspect thread metadata without printing content."
+    )
+    inspect.add_argument("--source-session", required=True)
+    attach = session_actions.add_parser(
+        "attach", help="Attach an official Codex thread to an MDE session."
+    )
+    attach.add_argument("--capture-session", required=True)
+    attach.add_argument("--source-session", required=True)
+    attach.add_argument(
+        "--consent",
+        action="store_true",
+        help="Consent to capture the full public conversation.",
+    )
+    detach = session_actions.add_parser("detach", help="Detach a Codex thread.")
+    detach.add_argument("--capture-session", required=True)
+    sync = session_actions.add_parser(
+        "sync", help="Incrementally synchronize an attached thread."
+    )
+    sync.add_argument("--capture-session", required=True)
+    sync.add_argument("--no-transmit", action="store_true")
+    imported = session_actions.add_parser(
+        "import", help="Import an explicit official thread/read JSON export."
+    )
+    imported.add_argument("--capture-session", required=True)
+    imported.add_argument("--source-file", required=True, type=Path)
+    imported.add_argument(
+        "--consent",
+        action="store_true",
+        help="Consent to capture the full public conversation.",
+    )
+    session_actions.add_parser("doctor", help="Diagnose official adapter availability.")
 
     actions.add_parser("doctor", help="Inspect the Windows collector environment.")
 
@@ -121,7 +163,11 @@ def run(args: argparse.Namespace, service: CodexCaptureService | None = None) ->
                 print("No active Codex capture session.")
                 return 1
             if args.json:
-                print(json.dumps(session, ensure_ascii=False, indent=2))
+                status_view = dict(session)
+                status_view["messageCount"] = len(status_view.pop("messages", []))
+                print(
+                    _console_safe(json.dumps(status_view, ensure_ascii=False, indent=2))
+                )
             else:
                 print(f"Session: {session['captureSessionId']}")
                 print(f"Project: {session['projectId']}")
@@ -153,6 +199,67 @@ def run(args: argparse.Namespace, service: CodexCaptureService | None = None) ->
             service.add_note(args.message, args.type, args.session)
             print("Note added.")
             return 0
+        if args.codex_action == "sessions":
+            if args.sessions_action == "discover":
+                for item in service.discover_codex_sessions():
+                    print(
+                        f"{item['sourceSessionId']}: {_console_safe(item.get('title') or '-')} "
+                        f"[{item.get('status', 'unknown')}]"
+                    )
+                return 0
+            if args.sessions_action == "list":
+                for item in service.list_codex_session_links():
+                    print(
+                        f"{item['captureSessionId']} -> {item.get('sourceSessionId')} "
+                        f"[{item.get('sessionLinkConfidence', 'unknown')}]"
+                    )
+                return 0
+            if args.sessions_action == "inspect":
+                item = service.inspect_codex_session(args.source_session)
+                print(f"Session: {item['sourceSessionId']}")
+                print(f"Messages: {item['messages']}")
+                print(f"User messages: {item['userMessages']}")
+                print(f"Assistant messages: {item['assistantMessages']}")
+                print(f"Tool events: {item['toolEvents']}")
+                print(f"Updated: {item.get('updatedAt') or '-'}")
+                return 0
+            if args.sessions_action == "attach":
+                item = service.attach_codex_session(
+                    args.capture_session, args.source_session, consent=args.consent
+                )
+                print(f"Attached: {args.capture_session} -> {item['sourceSessionId']}")
+                return 0
+            if args.sessions_action == "detach":
+                service.detach_codex_session(args.capture_session)
+                print(f"Detached: {args.capture_session}")
+                return 0
+            if args.sessions_action == "sync":
+                item = service.sync_codex_session(
+                    args.capture_session, transmit=not args.no_transmit
+                )
+                print(
+                    f"Synchronized: new={item['newMessages']} total={item['totalMessages']} "
+                    f"status={item['parseStatus']}"
+                )
+                return 0
+            if args.sessions_action == "import":
+                item = service.import_codex_session(
+                    args.capture_session, args.source_file, consent=args.consent
+                )
+                print(
+                    f"Imported: new={item['newMessages']} total={item['totalMessages']} "
+                    f"status={item['parseStatus']}"
+                )
+                return 0
+            if args.sessions_action == "doctor":
+                checks = service.doctor()
+                for check in checks:
+                    print(f"[{check['status']}] {check['name']}: {check['detail']}")
+                return 1 if any(item["status"] == "ERROR" for item in checks) else 0
+            print(
+                "Use mde codex sessions discover|list|inspect|attach|detach|sync|import|doctor."
+            )
+            return 2
         if args.codex_action == "doctor":
             checks = service.doctor()
             for check in checks:
@@ -165,3 +272,8 @@ def run(args: argparse.Namespace, service: CodexCaptureService | None = None) ->
     except CodexCaptureError as error:
         print(f"{error.code}: {error}")
         return 1
+
+
+def _console_safe(value: str) -> str:
+    encoding = sys.stdout.encoding or "utf-8"
+    return value.encode(encoding, errors="replace").decode(encoding)

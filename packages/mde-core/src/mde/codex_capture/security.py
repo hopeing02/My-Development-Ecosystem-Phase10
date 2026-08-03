@@ -19,7 +19,7 @@ SECRET_PATTERNS = (
     re.compile(r"(?i)(\bbearer\s+)[A-Za-z0-9._~+/=-]{12,}"),
     re.compile(
         r"(?i)(\b(?:password|passwd|secret|api[_-]?key|oauth[_-]?token|"
-        r"access[_-]?token)\s*[:=]\s*)[^\s\"']{4,}"
+        r"access[_-]?token)\s*[:=]\s*)[\"']?[^\s\"']{4,}[\"']?"
     ),
     re.compile(r"(?i)([A-Z][A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD)\s*=\s*)[^\s]+"),
     re.compile(r"(?i)\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?)://[^\s]+"),

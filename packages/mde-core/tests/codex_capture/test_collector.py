@@ -106,6 +106,14 @@ def test_security_redacts_tokens_and_excludes_sensitive_paths(repository: Path) 
     )
 
 
+def test_security_redacts_quoted_secret_assignment() -> None:
+    value, changed = redact_text('Example: API_KEY="secret-value"')
+
+    assert changed is True
+    assert "secret-value" not in value
+    assert "[REDACTED]" in value
+
+
 def test_register_start_run_finalize_creates_artifacts_and_queue(
     tmp_path: Path, repository: Path
 ) -> None:

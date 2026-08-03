@@ -21,6 +21,13 @@ from mde.codex_capture.git import (
     snapshot,
 )
 from mde.codex_capture.security import alias_path, alias_text, redact_text
+from mde.codex_capture.sessions import (
+    AppServerClient,
+    CodexAppSessionAdapter,
+    CodexSessionAdapterError,
+    ManualImportSessionAdapter,
+    checkpoint_from_dict,
+)
 
 COLLECTOR_VERSION = "0.1.0"
 OUTPUT_LIMIT = 1024 * 1024
@@ -31,6 +38,8 @@ VALID_TRANSITIONS = {
     "PAUSED": {"CAPTURING", "FINALIZING", "ABANDONED"},
     "FINALIZING": {"SAVED", "QUEUED", "FAILED", "QUARANTINED"},
     "QUEUED": {"SAVED", "QUEUED", "QUARANTINED"},
+    "SAVED": {"SAVED", "QUARANTINED"},
+    "QUARANTINED": {"SAVED", "QUARANTINED"},
 }
 
 
@@ -184,6 +193,10 @@ class CodexCaptureService:
             "captureSessionId": session_id,
             "wrapperRunId": run_id,
             "sourceSessionId": None,
+            "sourceClientType": None,
+            "sessionLinkConfidence": None,
+            "sessionLinkReason": None,
+            "codexSessionAdapter": None,
             "projectId": project_id,
             "targetFolder": project["targetFolder"],
             "title": redact_text(title)[0],
@@ -197,12 +210,358 @@ class CodexCaptureService:
             "commands": [],
             "notes": [],
             "tests": [],
+            "messages": [],
         }
         self._transition(session, "CAPTURING")
         _write_json(session_dir / "before-snapshot.json", before)
         _write_json(session_dir / "session-state.json", session)
         _write_json(self.active_path, {"captureSessionId": session_id})
         return session
+
+    def discover_codex_sessions(self) -> list[dict[str, Any]]:
+        try:
+            discovered = CodexAppSessionAdapter().discover_sessions()
+        except CodexSessionAdapterError as error:
+            raise CodexCaptureError(error.code, str(error)) from error
+        active = self.active()
+        projects = self.list_projects()
+        for item in discovered:
+            source_cwd = item.pop("_sourceCwd", None)
+            matching_project = next(
+                (
+                    project
+                    for project in projects
+                    if source_cwd
+                    and os.path.normcase(os.path.abspath(str(source_cwd)))
+                    == os.path.normcase(os.path.abspath(project["repositoryPath"]))
+                ),
+                None,
+            )
+            if matching_project:
+                item["projectPathAlias"] = "%REPO_ROOT%"
+            if (
+                active
+                and matching_project
+                and active.get("projectId") == matching_project.get("projectId")
+            ):
+                item["captureSessionCandidate"] = active["captureSessionId"]
+                item["sessionLinkConfidence"] = "medium"
+                item["sessionLinkReason"] = "same_repository_active_capture"
+            else:
+                item["sessionLinkConfidence"] = "low"
+                item["sessionLinkReason"] = "not_automatically_attached"
+        return discovered
+
+    def list_codex_session_links(self) -> list[dict[str, Any]]:
+        links: list[dict[str, Any]] = []
+        for path in sorted(self.sessions_dir.glob("*/source-session-reference.json")):
+            reference = _read_json(path, {})
+            reference["captureSessionId"] = path.parent.name
+            links.append(reference)
+        return links
+
+    def attach_codex_session(
+        self,
+        capture_session_id: str,
+        source_session_id: str,
+        *,
+        consent: bool,
+        client_type: str = "codex_app_server",
+    ) -> dict[str, Any]:
+        self._require_conversation_consent(consent)
+        session_dir, session = self._resolve_session(capture_session_id)
+        reference = {
+            "sourceSessionId": source_session_id,
+            "clientType": client_type,
+            "sourcePathAlias": None,
+            "consentGranted": True,
+            "copyRawSourceSession": False,
+            "sessionLinkConfidence": "manual",
+            "sessionLinkReason": "user_selected_source_session",
+            "adapterName": "CodexAppSessionAdapter",
+            "adapterVersion": "1.0.0",
+            "attachedAt": _now(),
+        }
+        session.update(
+            {
+                "sourceSessionId": source_session_id,
+                "sourceClientType": client_type,
+                "sessionLinkConfidence": "manual",
+                "sessionLinkReason": "user_selected_source_session",
+                "codexSessionAdapter": {
+                    "adapterName": "CodexAppSessionAdapter",
+                    "adapterVersion": "1.0.0",
+                    "sourceFormatVersion": "app-server-v2",
+                },
+            }
+        )
+        _write_json(session_dir / "source-session-reference.json", reference)
+        _write_json(session_dir / "session-state.json", session)
+        return reference
+
+    def detach_codex_session(self, capture_session_id: str) -> None:
+        session_dir, session = self._resolve_session(capture_session_id)
+        session.update(
+            {
+                "sourceSessionId": None,
+                "sourceClientType": None,
+                "sessionLinkConfidence": None,
+                "sessionLinkReason": None,
+                "codexSessionAdapter": None,
+            }
+        )
+        (session_dir / "source-session-reference.json").unlink(missing_ok=True)
+        (session_dir / "session-checkpoint.json").unlink(missing_ok=True)
+        _write_json(session_dir / "session-state.json", session)
+
+    def import_codex_session(
+        self, capture_session_id: str, source_file: Path, *, consent: bool
+    ) -> dict[str, Any]:
+        self._require_conversation_consent(consent)
+        session_dir, session = self._resolve_session(capture_session_id)
+        adapter = ManualImportSessionAdapter()
+        try:
+            result = adapter.read_session(
+                {"importPath": str(source_file)},
+                checkpoint_from_dict(
+                    _read_json(session_dir / "session-checkpoint.json", {})
+                ),
+            )
+        except CodexSessionAdapterError as error:
+            raise CodexCaptureError(error.code, str(error)) from error
+        reference = {
+            "sourceSessionId": result["sourceSessionId"],
+            "clientType": "manual_import",
+            "sourcePathAlias": f"%EXPLICIT_IMPORT%/{source_file.name}",
+            "consentGranted": True,
+            "copyRawSourceSession": False,
+            "sessionLinkConfidence": "manual",
+            "sessionLinkReason": "explicit_user_import",
+            **result["adapter"],
+            "attachedAt": _now(),
+        }
+        session.update(
+            {
+                "sourceSessionId": result["sourceSessionId"],
+                "sourceClientType": "manual_import",
+                "sessionLinkConfidence": "manual",
+                "sessionLinkReason": "explicit_user_import",
+                "codexSessionAdapter": result["adapter"],
+            }
+        )
+        _write_json(session_dir / "source-session-reference.json", reference)
+        return self._merge_codex_read(session_dir, session, result, transmit=True)
+
+    def inspect_codex_session(self, source_session_id: str) -> dict[str, Any]:
+        try:
+            result = CodexAppSessionAdapter().read_session(
+                {
+                    "sourceSessionId": source_session_id,
+                    "clientType": "codex_app_server",
+                },
+                None,
+            )
+        except CodexSessionAdapterError as error:
+            raise CodexCaptureError(error.code, str(error)) from error
+        messages = result["messages"]
+        return {
+            "sourceSessionId": result["sourceSessionId"],
+            "title": result.get("title"),
+            "messages": len(messages),
+            "userMessages": sum(item["role"] == "user" for item in messages),
+            "assistantMessages": sum(item["role"] == "assistant" for item in messages),
+            "toolEvents": sum(item["role"] == "tool" for item in messages),
+            "updatedAt": result.get("updatedAt"),
+            "parseStatus": result["parseStatus"],
+            "warnings": result["warnings"],
+        }
+
+    def sync_codex_session(
+        self, capture_session_id: str, *, transmit: bool = True
+    ) -> dict[str, Any]:
+        session_dir, session = self._resolve_session(capture_session_id)
+        reference = _read_json(session_dir / "source-session-reference.json", {})
+        self._require_conversation_consent(bool(reference.get("consentGranted")))
+        if reference.get("clientType") == "manual_import":
+            raise CodexCaptureError(
+                "CODEX_SESSION_SOURCE_NOT_FOUND",
+                "Manual imports are one-time snapshots; import the updated export again",
+            )
+        checkpoint = checkpoint_from_dict(
+            _read_json(session_dir / "session-checkpoint.json", {})
+        )
+        try:
+            result = CodexAppSessionAdapter().read_session(reference, checkpoint)
+        except CodexSessionAdapterError as error:
+            session["lastConversationErrorCode"] = error.code
+            _write_json(session_dir / "session-state.json", session)
+            raise CodexCaptureError(error.code, str(error)) from error
+        return self._merge_codex_read(session_dir, session, result, transmit=transmit)
+
+    def _merge_codex_read(
+        self,
+        session_dir: Path,
+        session: dict[str, Any],
+        result: dict[str, Any],
+        *,
+        transmit: bool,
+    ) -> dict[str, Any]:
+        previous_messages = session.get("messages", [])
+        previous_hashes = {item.get("contentHash") for item in previous_messages}
+        by_source_id = {item.get("sourceMessageId"): item for item in previous_messages}
+        for item in result["messages"]:
+            by_source_id[item.get("sourceMessageId")] = item
+        messages = []
+        seen_hashes: set[str | None] = set()
+        for item in by_source_id.values():
+            digest = item.get("contentHash")
+            if digest in seen_hashes:
+                continue
+            seen_hashes.add(digest)
+            messages.append(item)
+        for sequence, item in enumerate(messages, 1):
+            item["sequence"] = sequence
+        self._merge_codex_commands(session, messages)
+        new_count = sum(
+            item.get("contentHash") not in previous_hashes for item in messages
+        )
+        session["messages"] = messages
+        session["sourceSessionId"] = result["sourceSessionId"]
+        session["sourceClientType"] = (
+            _read_json(session_dir / "source-session-reference.json", {}).get(
+                "clientType"
+            )
+            or "codex_app_server"
+        )
+        session["codexSessionAdapter"] = result.get("adapter")
+        session["conversationParseStatus"] = result["parseStatus"]
+        session["conversationWarnings"] = result["warnings"]
+        session["lastConversationSyncAt"] = _now()
+        _write_json(session_dir / "messages.json", messages)
+        _write_json(session_dir / "session-checkpoint.json", result["checkpoint"])
+        _write_json(session_dir / "session-state.json", session)
+        self._refresh_conversation_artifacts(session_dir, session)
+        transmitted = False
+        if transmit and new_count and (session_dir / "envelope.json").exists():
+            try:
+                response = self._post(_read_json(session_dir / "envelope.json", {}))
+                session["serverResult"] = response
+                if session.get("state") in {"QUEUED", "QUARANTINED"}:
+                    self._transition(session, "SAVED")
+                session.pop("lastErrorCode", None)
+                session.pop("lastConversationErrorCode", None)
+                (self.queue_dir / f"{session['captureSessionId']}.json").unlink(
+                    missing_ok=True
+                )
+                (self.quarantine_dir / f"{session['captureSessionId']}.json").unlink(
+                    missing_ok=True
+                )
+                transmitted = True
+            except CodexCaptureError as error:
+                session["lastConversationErrorCode"] = error.code
+                if error.code == "QUARANTINED":
+                    if session.get("state") in {"QUEUED", "SAVED"}:
+                        self._transition(session, "QUARANTINED")
+                    _write_json(
+                        self.quarantine_dir / f"{session['captureSessionId']}.json",
+                        {
+                            "captureId": session["captureSessionId"],
+                            "status": "quarantined",
+                            "errorCode": error.code,
+                            "createdAt": _now(),
+                        },
+                    )
+                else:
+                    self._queue(session)
+        _write_json(session_dir / "session-state.json", session)
+        return {
+            "captureSessionId": session["captureSessionId"],
+            "sourceSessionId": result["sourceSessionId"],
+            "newMessages": new_count,
+            "totalMessages": len(messages),
+            "parseStatus": result["parseStatus"],
+            "warnings": result["warnings"],
+            "transmitted": transmitted,
+        }
+
+    @staticmethod
+    def _merge_codex_commands(
+        session: dict[str, Any], messages: list[dict[str, Any]]
+    ) -> None:
+        wrapper_commands = session.get("commands", [])
+        for message in messages:
+            if message.get("messageType") != "command":
+                continue
+            command_text = str(message.get("content", "")).split("\n\n", 1)[0].strip()
+            for command in wrapper_commands:
+                if str(command.get("command", "")).strip() != command_text:
+                    continue
+                sources = list(
+                    command.get("captureSources")
+                    or [command.get("captureMethod", "mde_wrapper")]
+                )
+                if "codex_session" not in sources:
+                    sources.append("codex_session")
+                command["captureSources"] = sources
+                message["relatedCommandIds"] = [command["commandId"]]
+                break
+
+    def _refresh_conversation_artifacts(
+        self, session_dir: Path, session: dict[str, Any]
+    ) -> None:
+        messages = session.get("messages", [])
+        payload_path = session_dir / "session.json"
+        envelope_path = session_dir / "envelope.json"
+        if not payload_path.exists() or not envelope_path.exists():
+            return
+        payload = _read_json(payload_path, {})
+        payload.update(
+            {
+                "sourceSessionId": session.get("sourceSessionId"),
+                "clientType": session.get("sourceClientType") or "codex_wrapper",
+                "messages": messages,
+                "sessionLinkConfidence": session.get("sessionLinkConfidence"),
+                "sessionLinkReason": session.get("sessionLinkReason"),
+                "adapter": session.get("codexSessionAdapter"),
+                "wrapperRequest": session.get("request"),
+                "firstCodexUserMessage": next(
+                    (
+                        item.get("content")
+                        for item in messages
+                        if item.get("role") == "user"
+                    ),
+                    None,
+                ),
+            }
+        )
+        payload = self._redact_values(payload)
+        envelope = _read_json(envelope_path, {})
+        envelope["payload"] = payload
+        envelope["capturedAt"] = _now()
+        envelope["contentHash"] = hashlib.sha256(
+            json.dumps(
+                payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            ).encode("utf-8")
+        ).hexdigest()
+        _write_json(payload_path, payload)
+        _write_json(envelope_path, envelope)
+        (session_dir / "session.md").write_text(
+            render_markdown(envelope), encoding="utf-8"
+        )
+
+    @staticmethod
+    def _require_conversation_consent(consent: bool) -> None:
+        enabled = os.environ.get("MDE_CODEX_CONVERSATION_CAPTURE", "1").strip().lower()
+        if enabled in {"0", "false", "no", "off"}:
+            raise CodexCaptureError(
+                "CODEX_CONVERSATION_CAPTURE_DISABLED",
+                "Conversation capture is disabled by configuration",
+            )
+        if not consent:
+            raise CodexCaptureError(
+                "CODEX_CONVERSATION_CONSENT_REQUIRED",
+                "Explicit consent is required to capture the full public conversation",
+            )
 
     def active(self) -> dict[str, Any] | None:
         if not self.active_path.exists():
@@ -359,6 +718,16 @@ class CodexCaptureService:
         session_dir, session = self._resolve_session(session_id)
         if session["state"] in {"SAVED", "QUEUED"}:
             return session
+        reference = _read_json(session_dir / "source-session-reference.json", {})
+        if reference and reference.get("clientType") != "manual_import":
+            try:
+                self.sync_codex_session(session["captureSessionId"], transmit=False)
+                session = self.load_session(session["captureSessionId"])
+            except CodexCaptureError as error:
+                session["lastConversationErrorCode"] = error.code
+                session.setdefault("conversationWarnings", []).append(
+                    "FINAL_SYNC_FAILED"
+                )
         self._transition(session, "FINALIZING")
         session["summary"] = redact_text(summary or "")[0] or session.get("summary")
         session["endedAt"] = _now()
@@ -401,7 +770,7 @@ class CodexCaptureService:
                         ),
                     }
                 )
-        payload = self._alias_values(payload, repo)
+        payload = self._redact_values(self._alias_values(payload, repo))
         content_hash = hashlib.sha256(
             json.dumps(
                 payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
@@ -437,6 +806,8 @@ class CodexCaptureService:
                 response = self._post(envelope)
                 session["serverResult"] = response
                 self._transition(session, "SAVED")
+                session.pop("lastErrorCode", None)
+                session.pop("lastConversationErrorCode", None)
                 (self.queue_dir / f"{session['captureSessionId']}.json").unlink(
                     missing_ok=True
                 )
@@ -479,7 +850,10 @@ class CodexCaptureService:
                 response = self._post(_read_json(session_dir / "envelope.json", {}))
                 session["serverResult"] = response
                 self._transition(session, "SAVED")
+                session.pop("lastErrorCode", None)
+                session.pop("lastConversationErrorCode", None)
                 path.unlink(missing_ok=True)
+                (self.quarantine_dir / f"{sid}.json").unlink(missing_ok=True)
             except CodexCaptureError as error:
                 queued["retryCount"] = int(queued.get("retryCount", 0)) + 1
                 queued["lastErrorCode"] = error.code
@@ -557,6 +931,26 @@ class CodexCaptureService:
                 "detail": codex or "manual mode only",
             }
         )
+        if codex:
+            try:
+                discovered = CodexAppSessionAdapter(
+                    AppServerClient(codex, timeout=5)
+                ).discover_sessions()
+                checks.append(
+                    {
+                        "status": "OK",
+                        "name": "Codex session adapter",
+                        "detail": f"CodexAppSessionAdapter 1.0.0; sessions={len(discovered)}",
+                    }
+                )
+            except CodexSessionAdapterError as error:
+                checks.append(
+                    {
+                        "status": "WARN",
+                        "name": "Codex session adapter",
+                        "detail": f"{error.code}; explicit import remains available",
+                    }
+                )
         checks.append(
             {"status": "OK", "name": "Collector storage", "detail": str(self.root)}
         )
@@ -612,6 +1006,19 @@ class CodexCaptureService:
         return value
 
     @staticmethod
+    def _redact_values(value: Any) -> Any:
+        if isinstance(value, str):
+            return redact_text(value)[0]
+        if isinstance(value, dict):
+            return {
+                key: CodexCaptureService._redact_values(nested)
+                for key, nested in value.items()
+            }
+        if isinstance(value, list):
+            return [CodexCaptureService._redact_values(item) for item in value]
+        return value
+
+    @staticmethod
     def _payload(
         session: dict[str, Any],
         before: dict[str, Any],
@@ -622,9 +1029,18 @@ class CodexCaptureService:
         return {
             "captureSessionId": session["captureSessionId"],
             "sourceSessionId": session.get("sourceSessionId"),
-            "clientType": "codex_wrapper",
+            "clientType": session.get("sourceClientType") or "codex_wrapper",
             "title": session["title"],
             "request": session.get("request"),
+            "wrapperRequest": session.get("request"),
+            "firstCodexUserMessage": next(
+                (
+                    item.get("content")
+                    for item in session.get("messages", [])
+                    if item.get("role") == "user"
+                ),
+                None,
+            ),
             "summary": session.get("summary"),
             "startedAt": session["startedAt"],
             "endedAt": session["endedAt"],
@@ -640,7 +1056,10 @@ class CodexCaptureService:
             },
             "beforeSnapshot": before,
             "afterSnapshot": after,
-            "messages": [],
+            "messages": session.get("messages", []),
+            "sessionLinkConfidence": session.get("sessionLinkConfidence"),
+            "sessionLinkReason": session.get("sessionLinkReason"),
+            "adapter": session.get("codexSessionAdapter"),
             "notes": session["notes"],
             "commands": session["commands"],
             "changedFiles": changes,
@@ -759,6 +1178,49 @@ def render_markdown(envelope: dict[str, Any]) -> str:
     lines.extend(
         (
             "",
+            "## Codex 대화",
+            "",
+        )
+    )
+    messages = payload.get("messages", [])
+    displayed = messages
+    if len(messages) > 200:
+        important = [
+            item
+            for item in messages[20:-50]
+            if item.get("messageType")
+            in {"progress", "error", "approval_request", "approval_result"}
+        ]
+        displayed = messages[:20] + important + messages[-50:]
+        lines.extend(
+            (
+                f"> 전체 {len(messages)}개 메시지 중 일부만 표시합니다.",
+                "> 전체 대화: [[messages.json]]",
+                "",
+            )
+        )
+    headings = {
+        ("user", "text"): "사용자",
+        ("assistant", "progress"): "Codex 진행",
+        ("assistant", "text"): "Codex",
+        ("system_summary", "progress"): "Codex 공개 요약",
+    }
+    for item in displayed:
+        role = item.get("role", "unknown")
+        message_type = item.get("messageType", "unknown")
+        if role == "tool":
+            if message_type == "command":
+                command = str(item.get("content", "")).split("\n\n", 1)[0]
+                lines.extend(("### 도구 실행", "", f"- `{command}`", ""))
+            elif message_type in {"error", "patch"}:
+                lines.extend(
+                    (f"### 도구 {message_type}", "", item.get("content") or "-", "")
+                )
+            continue
+        heading = headings.get((role, message_type), "판별되지 않은 공개 이벤트")
+        lines.extend((f"### {heading}", "", item.get("content") or "-", ""))
+    lines.extend(
+        (
             "## 실행 명령",
             "",
             "| 명령 | 분류 | 종료 코드 | 결과 |",

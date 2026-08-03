@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from autoknowledge_lite.api import create_app
 from autoknowledge_lite.capture_api import (
+    DevelopmentSessionHandler,
     contains_sensitive_content,
     normalize_capture_text,
     server_content_hash,
@@ -230,6 +231,12 @@ def test_sensitive_content_is_blocked_without_echoing_secret(tmp_path: Path) -> 
     assert contains_sensitive_content(secret)
 
 
+def test_redacted_assignment_does_not_consume_following_public_text() -> None:
+    DevelopmentSessionHandler._validate_sensitive(
+        'Example: API_KEY=[REDACTED] safely" remains public.'
+    )
+
+
 def test_development_session_is_saved_and_idempotent(
     tmp_path: Path,
 ) -> None:
@@ -254,7 +261,16 @@ def test_development_session_is_saved_and_idempotent(
                     "headAfter": "def456",
                     "worktreePathAlias": "%REPO_ROOT%",
                 },
-                "messages": [],
+                "messages": [
+                    {
+                        "messageId": "msg_001",
+                        "sequence": 1,
+                        "role": "user",
+                        "messageType": "text",
+                        "content": "공개 대화를 저장해.",
+                        "createdAt": "2026-08-02T20:01:00+09:00",
+                    }
+                ],
                 "commands": [],
                 "changedFiles": [],
                 "tests": [],
@@ -280,7 +296,10 @@ def test_development_session_is_saved_and_idempotent(
     assert replay.json() == response.json()
     document = tmp_path / "vault" / response.json()["documentPath"]
     assert document.is_file()
-    assert "Codex 작업" in document.read_text(encoding="utf-8")
+    markdown = document.read_text(encoding="utf-8")
+    assert "Codex 작업" in markdown
+    assert "## Codex 대화" in markdown
+    assert "공개 대화를 저장해." in markdown
     assert (document.with_suffix("") / "session.patch").is_file()
 
 

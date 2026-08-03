@@ -105,6 +105,12 @@ class DevelopmentSessionPayload(BaseModel):
         default="Codex development session", min_length=1, max_length=200
     )
     request: str | None = Field(default=None, max_length=10000)
+    wrapper_request: str | None = Field(
+        default=None, alias="wrapperRequest", max_length=10000
+    )
+    first_codex_user_message: str | None = Field(
+        default=None, alias="firstCodexUserMessage", max_length=300000
+    )
     summary: str | None = Field(default=None, max_length=10000)
     started_at: datetime = Field(alias="startedAt")
     ended_at: datetime | None = Field(default=None, alias="endedAt")
@@ -117,6 +123,13 @@ class DevelopmentSessionPayload(BaseModel):
     )
     after_snapshot: dict[str, Any] = Field(default_factory=dict, alias="afterSnapshot")
     messages: list[dict[str, Any]] = Field(default_factory=list)
+    session_link_confidence: str | None = Field(
+        default=None, alias="sessionLinkConfidence", max_length=20
+    )
+    session_link_reason: str | None = Field(
+        default=None, alias="sessionLinkReason", max_length=200
+    )
+    adapter: dict[str, Any] | None = None
     notes: list[dict[str, Any]] = Field(default_factory=list)
     commands: list[dict[str, Any]] = Field(default_factory=list)
     changed_files: list[dict[str, Any]] = Field(
@@ -730,6 +743,41 @@ class DevelopmentSessionDocumentRenderer:
             f"({item.get('attribution', 'UNKNOWN_ATTRIBUTION')})"
             for item in payload.changed_files
         )
+        lines.extend(("", "## Codex 대화", ""))
+        messages = payload.messages
+        displayed = messages
+        if len(messages) > 200:
+            important = [
+                item
+                for item in messages[20:-50]
+                if item.get("messageType")
+                in {"progress", "error", "approval_request", "approval_result"}
+            ]
+            displayed = messages[:20] + important + messages[-50:]
+            lines.extend(
+                (
+                    f"> 전체 {len(messages)}개 메시지 중 일부만 표시합니다.",
+                    "> 전체 대화는 로컬 messages.json에서 확인합니다.",
+                    "",
+                )
+            )
+        headings = {
+            ("user", "text"): "사용자",
+            ("assistant", "text"): "Codex",
+            ("assistant", "progress"): "Codex 진행",
+            ("system_summary", "progress"): "Codex 공개 요약",
+        }
+        for item in displayed:
+            role = item.get("role", "unknown")
+            message_type = item.get("messageType", "unknown")
+            if role == "tool" and message_type == "command":
+                command = str(item.get("content", "")).split("\n\n", 1)[0]
+                lines.extend(("### 도구 실행", "", f"- `{command}`", ""))
+                continue
+            if role == "tool" and message_type not in {"error", "patch"}:
+                continue
+            heading = headings.get((role, message_type), f"공개 {message_type} 이벤트")
+            lines.extend((f"### {heading}", "", str(item.get("content") or "-"), ""))
         lines.extend(
             (
                 "",
@@ -865,7 +913,9 @@ class DevelopmentSessionHandler:
     @staticmethod
     def _validate_sensitive(value: Any) -> None:
         if isinstance(value, str):
-            candidate = value.replace("[REDACTED]", "")
+            # Preserve a short separator so text following an intentionally masked
+            # assignment is not mistaken for the secret value itself.
+            candidate = value.replace("[REDACTED]", "***")
             if candidate and contains_sensitive_content(candidate):
                 raise CaptureError(
                     "SENSITIVE_CONTENT_DETECTED",
