@@ -12,6 +12,50 @@ def _write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def test_viewer_proxies_only_loopback_capture_queries(
+    monkeypatch, knowledge_service: KnowledgeService
+) -> None:
+    class Headers:
+        @staticmethod
+        def get_content_type() -> str:
+            return "application/json"
+
+    class Response:
+        status = 200
+        headers = Headers()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        @staticmethod
+        def read() -> bytes:
+            return b'{"items":[],"hasMore":false,"total":0}'
+
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["method"] = request.method
+        captured["timeout"] = timeout
+        return Response()
+
+    monkeypatch.setattr("mde.knowledge.api.urlopen", fake_urlopen)
+    client = TestClient(create_app(knowledge_service))
+
+    response = client.get("/api/v1/captures", params={"sourceType": "codex"})
+
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+    assert captured == {
+        "url": "http://127.0.0.1:8000/api/v1/captures?sourceType=codex",
+        "method": "GET",
+        "timeout": 10,
+    }
+
+
 def test_graph_api_is_source_scoped_read_only_and_hides_paths(
     tmp_path: Path, knowledge_service: KnowledgeService
 ) -> None:

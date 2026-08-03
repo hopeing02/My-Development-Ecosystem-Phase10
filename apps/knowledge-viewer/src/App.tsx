@@ -5,6 +5,9 @@ import { createCombinedSource, isCombinedSource, mergeGraphs, mergeSearchResults
 import { GraphView } from "./GraphView";
 import { DocumentEditor } from "./DocumentEditor";
 import { LinkResolutionDialog } from "./LinkResolutionDialog";
+import { CaptureWorkspace } from "./features/captures/CaptureWorkspace";
+import { getCaptureBacklinks } from "./features/captures/api";
+import type { CaptureSummary } from "./features/captures/types";
 import type { CommandResult, DocumentDetail, DocumentUpdateRequest, KnowledgeGraph, KnowledgeSource, LinkOccurrence, SearchResult, TagCount } from "./types";
 
 interface InstallPromptEvent extends Event {
@@ -13,6 +16,9 @@ interface InstallPromptEvent extends Event {
 }
 
 export default function App() {
+  const [viewMode, setViewMode] = useState<"documents" | "captures">("documents");
+  const [captureToOpen, setCaptureToOpen] = useState<string>();
+  const [captureBacklinks, setCaptureBacklinks] = useState<Array<CaptureSummary & { relationType: string }>>([]);
   const [deepLink] = useState(() => {
     const parameters = new URLSearchParams(window.location.search);
     return {
@@ -197,6 +203,9 @@ export default function App() {
     try {
       const nextDetail = await getDocument(sourceId, documentId, documentSource?.sensitive ?? false);
       setDetail(nextDetail);
+      getCaptureBacklinks(documentId)
+        .then((result) => setCaptureBacklinks(result.items))
+        .catch(() => setCaptureBacklinks([]));
       setEditing(false);
       setDirty(false);
       if (center) setCentered(true);
@@ -280,10 +289,15 @@ export default function App() {
       <header>
         <div><span className="eyebrow">LOCAL · EXPLICIT SAVE</span><h1>MDE Knowledge Viewer</h1></div>
         <div className="header-actions">
+          <nav className="primary-navigation" aria-label="통합 자료 탐색">
+            <button className={viewMode === "documents" ? "active" : ""} onClick={() => setViewMode("documents")}>문서</button>
+            <button className={viewMode === "captures" ? "active" : ""} onClick={() => setViewMode("captures")}>Capture</button>
+          </nav>
           {installPrompt && <button className="install-app" onClick={() => void installApp()}>앱 설치</button>}
-          <div className="stats">{loading ? "불러오는 중…" : graph ? `${graph.returnedDocumentCount} 문서 · ${graph.edges.length} 연결` : "대기 중"}</div>
+          <div className="stats">{viewMode === "captures" ? "통합 Capture Viewer" : loading ? "불러오는 중…" : graph ? `${graph.returnedDocumentCount} 문서 · ${graph.edges.length} 연결` : "대기 중"}</div>
         </div>
       </header>
+      {viewMode === "captures" ? <CaptureWorkspace initialCaptureId={captureToOpen} /> : <>
       {error && <div className="error" role="alert">{error}<button aria-label="오류 닫기" onClick={() => setError("")}>×</button></div>}
       {notice && <div className="notice" role="status">{notice}{indexRetry && <button className="retry-index" onClick={() => void retryIndex()}>다시 색인</button>}<button aria-label="알림 닫기" onClick={() => setNotice("")}>×</button></div>}
       {graph?.truncated && <div className="warning">전체 {graph.totalDocumentCount.toLocaleString()}개 문서 중 연결도가 높은 {graph.returnedDocumentCount.toLocaleString()}개를 표시합니다.</div>}
@@ -337,6 +351,7 @@ export default function App() {
             <button className="center-action" onClick={() => { if (mayDiscard()) setCentered(true); }}>이 문서 중심으로 보기</button>
             <LinkList title="이 문서가 참조하는 문서" items={detail.outgoingLinks} onSelect={(item, center) => { setHighlightedEdge({ source: detail.id, target: item.documentId }); return selectNode(item.documentId, center, item.sourceId); }} />
             <LinkList title="이 문서를 참조하는 문서" items={detail.incomingLinks} onSelect={(item, center) => { setHighlightedEdge({ source: item.documentId, target: detail.id }); return selectNode(item.documentId, center, item.sourceId); }} />
+            {captureBacklinks.length > 0 && <section className="link-list"><h4>이 문서를 참조하는 Capture {captureBacklinks.length}개</h4>{captureBacklinks.map((item) => <button key={item.captureId} onClick={() => { setCaptureToOpen(item.captureId); setViewMode("captures"); }}><strong>{item.title}</strong><small>{item.captureType === "development_session" ? "Codex 전체 작업" : item.sourceType === "chatgpt" ? "ChatGPT 답변" : item.sourceType === "codex" ? "Codex 답변 단편" : "일반 클립보드"} · {item.relationType === "parent_of" ? "상위 주제" : "Capture 문서"}</small></button>)}</section>}
             <UnresolvedLinks items={detail.unresolvedLinkOccurrences ?? []} allowRewrite={detail.editable && (sources.find((item) => item.id === detail.sourceId)?.allowLinkRewrite ?? false)} onResolve={setLinkOccurrence} />
             <TextList title="후보가 여러 개인 링크" items={detail.ambiguousLinks} />
             <h4>미리보기</h4><pre>{detail.preview}</pre>
@@ -345,6 +360,7 @@ export default function App() {
       </div>
       {pendingSensitive && <div className="dialog-backdrop"><section className="dialog" role="dialog" aria-modal="true" aria-labelledby="sensitive-title"><h2 id="sensitive-title">민감 Source 열기</h2><p><strong>{pendingSensitive.name}</strong>에 포함된 민감 자료를 화면에 표시합니다.</p><p>편집이 허용된 문서는 명시적으로 저장할 때만 원본 Markdown에 반영됩니다.</p><div><button onClick={() => setPendingSensitive(null)}>취소</button><button className="confirm" onClick={confirmSensitive}>열기</button></div></section></div>}
       {linkOccurrence && detail && <LinkResolutionDialog document={detail} occurrence={linkOccurrence} sensitive={sources.find((item) => item.id === detail.sourceId)?.sensitive ?? false} onClose={() => setLinkOccurrence(null)} onSaved={linkSaved} />}
+      </>}
     </main>
   );
 }

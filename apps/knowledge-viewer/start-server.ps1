@@ -8,10 +8,13 @@ param(
 $ErrorActionPreference = "Stop"
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $mdeExecutable = Join-Path $repositoryRoot ".venv\Scripts\mde.exe"
+$capturePython = Join-Path $repositoryRoot "apps\autoknowledge-lite\.venv\Scripts\python.exe"
 $logDirectory = Join-Path $repositoryRoot "logs"
 $supervisorLog = Join-Path $logDirectory "knowledge-viewer-supervisor.log"
 $stdoutLog = Join-Path $logDirectory "knowledge-viewer.out.log"
 $stderrLog = Join-Path $logDirectory "knowledge-viewer.err.log"
+$captureStdoutLog = Join-Path $logDirectory "autoknowledge-capture.out.log"
+$captureStderrLog = Join-Path $logDirectory "autoknowledge-capture.err.log"
 
 New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
 
@@ -47,6 +50,38 @@ function Test-ViewerHealth {
             $response.Dispose()
         }
     }
+}
+
+function Test-CaptureHealth {
+    try {
+        Invoke-WebRequest `
+            -UseBasicParsing `
+            -Uri "http://127.0.0.1:8000/v1/status" `
+            -TimeoutSec 3 | Out-Null
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+function Start-CaptureProcess {
+    if (-not (Test-Path -LiteralPath $capturePython)) {
+        Write-SupervisorLog "Capture Python environment is unavailable: $capturePython"
+        return $null
+    }
+    Write-SupervisorLog "Starting AutoKnowledge Capture API on ${HostAddress}:8000."
+    return Start-Process `
+        -FilePath $capturePython `
+        -ArgumentList @(
+            "-m", "uvicorn", "autoknowledge_lite.api:app",
+            "--host", $HostAddress, "--port", "8000"
+        ) `
+        -WorkingDirectory (Join-Path $repositoryRoot "apps\autoknowledge-lite") `
+        -WindowStyle Hidden `
+        -RedirectStandardOutput $captureStdoutLog `
+        -RedirectStandardError $captureStderrLog `
+        -PassThru
 }
 
 function Wait-ViewerHealth {
@@ -110,6 +145,18 @@ function Start-ViewerProcess {
 }
 
 while ($true) {
+    if (-not (Test-CaptureHealth)) {
+        $captureServer = Start-CaptureProcess
+        if ($captureServer) {
+            for ($attempt = 0; $attempt -lt 20; $attempt++) {
+                Start-Sleep -Milliseconds 500
+                if (Test-CaptureHealth) {
+                    Write-SupervisorLog "AutoKnowledge Capture API is healthy."
+                    break
+                }
+            }
+        }
+    }
     if (Test-ViewerHealth) {
         Start-Sleep -Seconds 10
         continue

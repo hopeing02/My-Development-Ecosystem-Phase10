@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from ipaddress import ip_address
 from pathlib import Path
 from time import perf_counter
 from urllib.parse import urlparse
+from urllib.error import HTTPError, URLError
+from urllib.request import Request as UrlRequest, urlopen
 
 from fastapi import FastAPI, HTTPException, Query, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from mde.knowledge.errors import (
@@ -50,7 +53,17 @@ def create_app(
     @application.middleware("http")
     async def request_metrics(request: Request, call_next):
         started = perf_counter()
-        if request.url.path.startswith("/api/v1/knowledge/") and request.method in {"PATCH", "POST"}:
+        mutating_knowledge = request.url.path.startswith(
+            "/api/v1/knowledge/"
+        ) and request.method in {"PATCH", "POST"}
+        mutating_capture = (
+            request.url.path.startswith("/api/v1/capture-relations/")
+            and request.method in {"POST", "DELETE"}
+        ) or (
+            request.url.path.startswith("/api/v1/captures/")
+            and request.method == "PATCH"
+        )
+        if mutating_knowledge or mutating_capture:
             host = (request.url.hostname or "").casefold()
             if not _allowed_command_host(host):
                 return _error(403, "INVALID_HOST", "Knowledge commands require a local or private-network host.")
@@ -58,7 +71,7 @@ def create_app(
             origin_host = (urlparse(origin).hostname or "").casefold() if origin else ""
             if origin and origin_host != host:
                 return _error(403, "INVALID_ORIGIN", "Knowledge command origin is not allowed.")
-            if request.headers.get("content-type", "").split(";", 1)[0].strip().casefold() != "application/json":
+            if request.method in {"PATCH", "POST"} and request.headers.get("content-type", "").split(";", 1)[0].strip().casefold() != "application/json":
                 return _error(415, "INVALID_CONTENT_TYPE", "Knowledge commands require JSON.")
             content_length = request.headers.get("content-length")
             if content_length and int(content_length) > 2 * 1024 * 1024 + 65536:
@@ -324,6 +337,56 @@ def create_app(
             }
         )
 
+    # The Viewer remains a single-origin application. Capture persistence stays
+    # owned by AutoKnowledge Lite on loopback; this narrow gateway exposes only
+    # its Viewer/query and relation-management routes.
+    @application.api_route(
+        "/api/v1/captures{capture_path:path}",
+        methods=["GET", "PATCH"],
+        response_model=None,
+    )
+    async def capture_gateway(request: Request, capture_path: str) -> Response:
+        return await _proxy_capture_request(request, f"/api/v1/captures{capture_path}")
+
+    @application.api_route(
+        "/api/v1/capture-relations/{relation_path:path}",
+        methods=["POST", "DELETE"],
+        response_model=None,
+    )
+    async def capture_relation_gateway(request: Request, relation_path: str) -> Response:
+        return await _proxy_capture_request(
+            request, f"/api/v1/capture-relations/{relation_path}"
+        )
+
+    @application.get("/api/v1/graph", response_model=None)
+    async def capture_graph_gateway(request: Request) -> Response:
+        return await _proxy_capture_request(request, "/api/v1/graph")
+
+    @application.get(
+        "/api/v1/graph/neighborhood/{entity_id}", response_model=None
+    )
+    async def capture_neighborhood_gateway(
+        request: Request, entity_id: str
+    ) -> Response:
+        return await _proxy_capture_request(
+            request, f"/api/v1/graph/neighborhood/{entity_id}"
+        )
+
+    @application.get("/api/v1/files/history", response_model=None)
+    async def capture_file_history_gateway(request: Request) -> Response:
+        return await _proxy_capture_request(request, "/api/v1/files/history")
+
+    @application.get(
+        "/api/v1/documents/{document_id:path}/capture-backlinks",
+        response_model=None,
+    )
+    async def capture_backlinks_gateway(
+        request: Request, document_id: str
+    ) -> Response:
+        return await _proxy_capture_request(
+            request, f"/api/v1/documents/{document_id}/capture-backlinks"
+        )
+
     application.include_router(command_router(commands, _success))
     return application
 
@@ -479,3 +542,57 @@ def _allowed_command_host(host: str) -> bool:
     except ValueError:
         return False
     return not (address.is_global or address.is_unspecified or address.is_multicast)
+
+
+async def _proxy_capture_request(request: Request, path: str) -> Response:
+    base = os.getenv("AUTOKNOWLEDGE_CAPTURE_API_URL", "http://127.0.0.1:8000")
+    parsed = urlparse(base)
+    if parsed.scheme != "http" or (parsed.hostname or "").casefold() not in {
+        "127.0.0.1",
+        "localhost",
+    }:
+        return _error(
+            503,
+            "CAPTURE_SERVICE_UNAVAILABLE",
+            "Capture API must use the configured loopback service.",
+        )
+    body = await request.body()
+    query = request.url.query
+    target = f"{base.rstrip('/')}{path}{f'?{query}' if query else ''}"
+    headers = {"Accept": "application/json"}
+    if request.headers.get("content-type"):
+        headers["Content-Type"] = request.headers["content-type"]
+    if request.headers.get("authorization"):
+        headers["Authorization"] = request.headers["authorization"]
+
+    def send() -> tuple[int, bytes, str]:
+        outgoing = UrlRequest(
+            target,
+            data=body if body else None,
+            headers=headers,
+            method=request.method,
+        )
+        try:
+            with urlopen(outgoing, timeout=10) as response:
+                return (
+                    response.status,
+                    response.read(),
+                    response.headers.get_content_type(),
+                )
+        except HTTPError as error:
+            return error.code, error.read(), error.headers.get_content_type()
+
+    try:
+        status_code, content, content_type = await asyncio.to_thread(send)
+    except (URLError, TimeoutError, OSError):
+        return _error(
+            503,
+            "CAPTURE_SERVICE_UNAVAILABLE",
+            "AutoKnowledge Capture service is not available.",
+        )
+    return Response(
+        content=content,
+        status_code=status_code,
+        media_type=content_type,
+        headers={"Cache-Control": "no-store"},
+    )

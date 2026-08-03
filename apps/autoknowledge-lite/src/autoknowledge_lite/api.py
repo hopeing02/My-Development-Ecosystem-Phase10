@@ -27,6 +27,10 @@ from autoknowledge_lite.capture_api import (
     legacy_share_to_envelope,
 )
 from autoknowledge_lite.capture_relations import install_relation_api
+from autoknowledge_lite.capture_query import (
+    CaptureQueryService,
+    install_capture_query_api,
+)
 from autoknowledge_lite.codex_control import CodexController, install_codex_control_api
 from autoknowledge_lite.content import (
     ContentFetcher,
@@ -130,6 +134,10 @@ def create_app(
     install_capture_api(application, unified_capture_service)
     if unified_capture_service.relation_service is not None:
         install_relation_api(application, unified_capture_service.relation_service)
+        install_capture_query_api(
+            application,
+            CaptureQueryService(unified_capture_service.relation_service.repository),
+        )
     install_codex_control_api(application, codex_controller)
 
     @application.get("/v1/status", response_model=StatusResponse)

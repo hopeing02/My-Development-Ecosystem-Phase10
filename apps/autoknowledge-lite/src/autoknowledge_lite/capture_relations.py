@@ -660,6 +660,11 @@ class CaptureRelationService:
             "captureDevice": envelope.capture_device.value,
             "capturedAt": envelope.captured_at.isoformat(),
             "projectId": envelope.project_id,
+            "captureMethod": envelope.capture_method,
+            "targetFolder": envelope.target_folder,
+            "parentDocument": envelope.parent_document,
+            "deviceId": envelope.device_id,
+            "metadata": dict(envelope.metadata),
             "sourceApp": envelope.metadata.get("sourceApp"),
             "documentId": result.document_id,
             "documentPath": result.document_path,
@@ -677,6 +682,8 @@ class CaptureRelationService:
                     "contentHash": server_content_hash(content),
                     "normalizedContent": content,
                     "title": payload.get("title"),
+                    "mimeType": payload.get("mimeType", "text/plain"),
+                    "language": payload.get("language"),
                 }
             )
         else:
@@ -710,6 +717,10 @@ class CaptureRelationService:
                     "endedAt": payload.get("endedAt"),
                     "clientType": payload.get("clientType"),
                     "messages": messages,
+                    # Viewer/query data is stored only after the Capture handler has
+                    # completed sensitive-content validation.  Keeping it beside the
+                    # matching projection avoids reading arbitrary repository paths.
+                    "session": dict(payload),
                 }
             )
         return record
