@@ -4,8 +4,13 @@ import { expect, test, vi } from "vitest";
 import { GraphView } from "./GraphView";
 import type { KnowledgeGraph } from "./types";
 
+const cytoscapeState = vi.hoisted(() => ({
+  selectors: [] as string[],
+}));
+
 vi.mock("cytoscape", () => ({
-  default: vi.fn(({ container }: { container: HTMLElement }) => {
+  default: vi.fn(({ container, style }: { container: HTMLElement; style: Array<{ selector: string }> }) => {
+    cytoscapeState.selectors = style.map((item) => item.selector);
     container.append(document.createElement("canvas"));
     return {
       destroy: () => container.replaceChildren(),
@@ -50,4 +55,20 @@ test("keeps React content outside the Cytoscape-owned container", () => {
   expect(() => view.rerender(
     <GraphView graph={graph} centered={false} highlightedIds={new Set()} onSelectNode={vi.fn()} />,
   )).not.toThrow();
+});
+
+test("uses Cytoscape truthy selectors for boolean graph state", () => {
+  render(
+    <GraphView graph={graph} centered={false} highlightedIds={new Set()} onSelectNode={vi.fn()} />,
+  );
+
+  expect(cytoscapeState.selectors).toEqual(expect.arrayContaining([
+    "node[?orphan]",
+    "node[?highlighted]",
+    "node[?selected]",
+    "node[?broken]",
+    "edge[?highlighted]",
+    "edge[?broken]",
+  ]));
+  expect(cytoscapeState.selectors.some((selector) => selector.includes("= true"))).toBe(false);
 });

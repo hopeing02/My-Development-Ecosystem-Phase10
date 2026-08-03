@@ -30,7 +30,7 @@ export function CaptureGraph({ graph, onOpenCapture }: Props) {
       style: [
         { selector: "node", style: { "background-color": "data(color)", label: "data(label)", color: "#17213d", "font-size": "11px", "text-background-color": "#fff", "text-background-opacity": .9, "text-background-padding": "3px", "text-valign": "bottom", "text-margin-y": 7 } },
         { selector: "edge", style: { width: 1.5, "line-color": "#9aa7c7", "target-arrow-color": "#9aa7c7", "target-arrow-shape": "triangle", "curve-style": "bezier" } },
-        { selector: "edge[candidate = true]", style: { "line-style": "dashed", "line-color": "#d18a27", "target-arrow-color": "#d18a27" } },
+        { selector: "edge[?candidate]", style: { "line-style": "dashed", "line-color": "#d18a27", "target-arrow-color": "#d18a27" } },
       ],
       layout: { name: "cose", animate: false, fit: true, padding: 36 },
     });
