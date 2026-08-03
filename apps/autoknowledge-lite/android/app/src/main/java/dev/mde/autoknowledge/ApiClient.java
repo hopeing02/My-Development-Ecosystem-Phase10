@@ -164,6 +164,164 @@ final class ApiClient {
         return result;
     }
 
+    static boolean checkCodexConnection(String serverUrl, String apiKey)
+            throws IOException, JSONException {
+        return "connected".equals(requestJson(
+                serverUrl,
+                "/api/v1/mobile/status",
+                "GET",
+                apiKey,
+                null
+        ).optString("status"));
+    }
+
+    static List<CodexProject> listCodexProjects(String serverUrl, String apiKey)
+            throws IOException, JSONException {
+        JSONArray items = requestJson(
+                serverUrl,
+                "/api/v1/mobile/codex/projects",
+                "GET",
+                apiKey,
+                null
+        ).getJSONArray("projects");
+        List<CodexProject> result = new ArrayList<>();
+        for (int index = 0; index < items.length(); index++) {
+            result.add(CodexProject.fromJson(items.getJSONObject(index)));
+        }
+        return result;
+    }
+
+    static List<CodexSessionSummary> listCodexSessions(String serverUrl, String apiKey)
+            throws IOException, JSONException {
+        JSONArray items = requestJson(
+                serverUrl,
+                "/api/v1/mobile/codex/sessions?limit=20",
+                "GET",
+                apiKey,
+                null
+        ).getJSONArray("sessions");
+        List<CodexSessionSummary> result = new ArrayList<>();
+        for (int index = 0; index < items.length(); index++) {
+            result.add(CodexSessionSummary.fromJson(items.getJSONObject(index)));
+        }
+        return result;
+    }
+
+    static String startCodexCapture(
+            String serverUrl,
+            String apiKey,
+            String projectId,
+            String title
+    ) throws IOException, JSONException {
+        JSONObject response = requestJson(
+                serverUrl,
+                "/api/v1/mobile/codex/captures",
+                "POST",
+                apiKey,
+                new JSONObject().put("projectId", projectId).put("title", title)
+        );
+        return response.getString("captureSessionId");
+    }
+
+    static void attachCodexSession(
+            String serverUrl,
+            String apiKey,
+            String captureSessionId,
+            String sourceSessionId,
+            boolean consent
+    ) throws IOException, JSONException {
+        requestJson(
+                serverUrl,
+                "/api/v1/mobile/codex/captures/" + encodePath(captureSessionId) + "/attach",
+                "POST",
+                apiKey,
+                new JSONObject().put("sourceSessionId", sourceSessionId).put("consent", consent)
+        );
+    }
+
+    static CodexCaptureStatus syncCodexSession(
+            String serverUrl,
+            String apiKey,
+            String captureSessionId
+    ) throws IOException, JSONException {
+        return CodexCaptureStatus.fromJson(requestJson(
+                serverUrl,
+                "/api/v1/mobile/codex/captures/" + encodePath(captureSessionId) + "/sync",
+                "POST",
+                apiKey,
+                new JSONObject().put("transmit", true)
+        ));
+    }
+
+    static CodexCaptureStatus finalizeCodexSession(
+            String serverUrl,
+            String apiKey,
+            String captureSessionId
+    ) throws IOException, JSONException {
+        return CodexCaptureStatus.fromJson(requestJson(
+                serverUrl,
+                "/api/v1/mobile/codex/captures/" + encodePath(captureSessionId) + "/finalize",
+                "POST",
+                apiKey,
+                new JSONObject().put("transmit", true)
+        ));
+    }
+
+    static CodexCaptureStatus codexCaptureStatus(
+            String serverUrl,
+            String apiKey,
+            String captureSessionId
+    ) throws IOException, JSONException {
+        return CodexCaptureStatus.fromJson(requestJson(
+                serverUrl,
+                "/api/v1/mobile/codex/captures/" + encodePath(captureSessionId),
+                "GET",
+                apiKey,
+                null
+        ));
+    }
+
+    private static JSONObject requestJson(
+            String serverUrl,
+            String path,
+            String method,
+            String apiKey,
+            JSONObject body
+    ) throws IOException, JSONException {
+        HttpURLConnection connection = (HttpURLConnection) new URL(normalize(serverUrl) + path)
+                .openConnection();
+        connection.setRequestMethod(method);
+        connection.setConnectTimeout(10_000);
+        connection.setReadTimeout(30_000);
+        connection.setRequestProperty("Accept", "application/json");
+        connection.setRequestProperty("Authorization", "Bearer " + apiKey);
+        if (body != null) {
+            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+            connection.setDoOutput(true);
+            try (OutputStream output = connection.getOutputStream()) {
+                output.write(body.toString().getBytes(StandardCharsets.UTF_8));
+            }
+        }
+        int status = connection.getResponseCode();
+        String responseBody;
+        try {
+            responseBody = readBody(status >= 400 ? connection.getErrorStream() : connection.getInputStream());
+        } finally {
+            connection.disconnect();
+        }
+        JSONObject response = responseBody.isEmpty() ? new JSONObject() : new JSONObject(responseBody);
+        if (status >= 400) {
+            JSONObject error = response.optJSONObject("error");
+            String code = error == null ? "HTTP_" + status : error.optString("code", "HTTP_" + status);
+            throw new IOException("Codex control failed: " + code);
+        }
+        return response;
+    }
+
+    private static String encodePath(String value) throws IOException {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8.name()).replace("+", "%20");
+    }
+
     private static String normalize(String value) {
         return value.trim().replaceFirst("/+$", "");
     }

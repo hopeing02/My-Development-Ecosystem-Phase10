@@ -9,6 +9,9 @@ final class CaptureSettingsRepository {
     static final String PARENT_DOCUMENT_ID = "parent_document_id";
     static final String PARENT_DOCUMENT_LABEL = "parent_document_label";
     static final String USE_LEGACY_CAPTURE_API = "use_legacy_capture_api";
+    static final String CONTROL_API_KEY = "control_api_key";
+    static final String CODEX_CAPTURE_SESSION_ID = "codex_capture_session_id";
+    static final String KNOWLEDGE_VIEWER_URL = "knowledge_viewer_url";
     private final SharedPreferences preferences;
 
     CaptureSettingsRepository(Context context) {
@@ -74,5 +77,29 @@ final class CaptureSettingsRepository {
 
     void setUseLegacyCaptureApi(boolean enabled) {
         preferences.edit().putBoolean(USE_LEGACY_CAPTURE_API, enabled).apply();
+    }
+
+    String controlApiKey() {
+        return preferences.getString(CONTROL_API_KEY, "");
+    }
+
+    void setControlApiKey(String value) {
+        preferences.edit().putString(CONTROL_API_KEY, value).apply();
+    }
+
+    String codexCaptureSessionId() {
+        return preferences.getString(CODEX_CAPTURE_SESSION_ID, "");
+    }
+
+    void setCodexCaptureSessionId(String value) {
+        preferences.edit().putString(CODEX_CAPTURE_SESSION_ID, value).apply();
+    }
+
+    String knowledgeViewerUrl() {
+        return preferences.getString(KNOWLEDGE_VIEWER_URL, "");
+    }
+
+    void setKnowledgeViewerUrl(String value) {
+        preferences.edit().putString(KNOWLEDGE_VIEWER_URL, value).apply();
     }
 }

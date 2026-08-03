@@ -59,7 +59,7 @@ def test_status_reports_service_version(tmp_path: Path) -> None:
     assert response.json() == {
         "service": "autoknowledge-lite",
         "status": "ok",
-        "version": "0.2.2",
+        "version": "0.2.3",
     }
 
 
@@ -79,10 +79,12 @@ def test_pc_capture_page_has_fixed_safe_folder_options(tmp_path: Path) -> None:
     ):
         assert f'<option value="{folder}">' in response.text
     assert 'fetch("/v1/share"' in response.text
-    assert 'fetch(`/v1/knowledge/documents?q=' in response.text
+    assert "fetch(`/v1/knowledge/documents?q=" in response.text
     assert 'name="target_folder"' in response.text
     assert 'id="parent-search"' in response.text
-    assert 'parent_document_id: selectedParent ? selectedParent.id : null' in response.text
+    assert (
+        "parent_document_id: selectedParent ? selectedParent.id : null" in response.text
+    )
     assert 'capture_origin: "pc_clipboard"' in response.text
     assert 'type="text" name="target_folder"' not in response.text
 
@@ -140,7 +142,7 @@ def test_android_apk_download_serves_only_configured_file(tmp_path: Path) -> Non
     assert response.status_code == 200
     assert response.content == b"safe-apk"
     assert response.headers["content-type"] == "application/vnd.android.package-archive"
-    assert "autoknowledge-lite-v0.2.2.apk" in response.headers["content-disposition"]
+    assert "autoknowledge-lite-v0.2.3.apk" in response.headers["content-disposition"]
 
 
 def test_android_apk_download_returns_not_found_when_build_is_missing(

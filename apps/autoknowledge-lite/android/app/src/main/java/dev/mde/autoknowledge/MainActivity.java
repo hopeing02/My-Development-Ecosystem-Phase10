@@ -5,10 +5,12 @@ import android.app.AlertDialog;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.text.InputType;
+import android.text.method.PasswordTransformationMethod;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
@@ -31,6 +33,7 @@ public final class MainActivity extends Activity {
     static final String SERVER_URL = "server_url";
     static final String VAULT_FOLDER = "vault_folder";
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ExecutorService codexExecutor = Executors.newSingleThreadExecutor();
     private String selectedParentDocumentId = "";
     private TextView selectedParentText;
     private Button clearParentButton;
@@ -38,6 +41,11 @@ public final class MainActivity extends Activity {
     private TextView autoCaptureStatus;
     private TextView pendingStatus;
     private Switch autoCaptureSwitch;
+    private CodexSessionSummary selectedCodexSession;
+    private TextView selectedCodexSessionText;
+    private TextView codexCaptureStatusText;
+    private Spinner codexProjectSpinner;
+    private String knowledgeViewerUrl = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -262,6 +270,8 @@ public final class MainActivity extends Activity {
         ));
         layout.addView(saveClipboard);
 
+        buildCodexCaptureSection(layout, padding, serverUrl);
+
         ScrollView scrollView = new ScrollView(this);
         scrollView.addView(layout);
         setContentView(scrollView);
@@ -271,6 +281,257 @@ public final class MainActivity extends Activity {
         if (captureDependencies.settings.state() != AutoCaptureState.DISABLED) {
             refreshRunningService();
         }
+    }
+
+    private void buildCodexCaptureSection(LinearLayout layout, int padding, EditText serverUrl) {
+        TextView heading = new TextView(this);
+        heading.setText("Codex 전체 공개 대화 저장");
+        heading.setTextSize(20);
+        heading.setPadding(0, padding * 2, 0, padding / 2);
+        layout.addView(heading);
+
+        TextView notice = new TextView(this);
+        notice.setText(
+                "모바일은 Codex 파일이나 App Server에 직접 접근하지 않습니다. "
+                        + "인증된 PC 수집기에는 공개 사용자·assistant 응답과 공개 도구 기록의 저장만 요청합니다."
+        );
+        layout.addView(notice);
+
+        EditText controlKey = new EditText(this);
+        controlKey.setHint("모바일 제어 API 키");
+        controlKey.setSingleLine(true);
+        controlKey.setTransformationMethod(PasswordTransformationMethod.getInstance());
+        controlKey.setText(captureDependencies.settings.controlApiKey());
+        layout.addView(controlKey, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        Button checkConnection = new Button(this);
+        checkConnection.setText("PC 연결 상태 확인");
+        checkConnection.setOnClickListener(view -> {
+            String key = controlKey.getText().toString().trim();
+            String url = serverUrl.getText().toString().trim();
+            if (url.isEmpty() || key.isEmpty()) {
+                Toast.makeText(this, "서버 주소와 제어 API 키를 입력하세요.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            captureDependencies.settings.setControlApiKey(key);
+            checkConnection.setEnabled(false);
+            codexExecutor.execute(() -> {
+                try {
+                    boolean connected = ApiClient.checkCodexConnection(url, key);
+                    runOnUiThread(() -> {
+                        checkConnection.setEnabled(true);
+                        codexCaptureStatusText.setText(connected ? "PC 수집기에 연결되었습니다." : "PC 수집기를 사용할 수 없습니다.");
+                    });
+                } catch (Exception error) {
+                    runOnUiThread(() -> {
+                        checkConnection.setEnabled(true);
+                        codexCaptureStatusText.setText("PC 연결 실패 — 서버 주소, API 키와 Tailscale 연결을 확인하세요.");
+                    });
+                }
+            });
+        });
+        layout.addView(checkConnection);
+
+        codexProjectSpinner = new Spinner(this);
+        layout.addView(codexProjectSpinner);
+
+        Button recentSessions = new Button(this);
+        recentSessions.setText("최근 실제 Codex 세션 조회");
+        recentSessions.setOnClickListener(view -> loadCodexSessions(recentSessions));
+        layout.addView(recentSessions);
+
+        selectedCodexSessionText = new TextView(this);
+        selectedCodexSessionText.setText("저장할 Codex 세션을 선택하지 않았습니다.");
+        selectedCodexSessionText.setPadding(0, padding / 2, 0, padding / 2);
+        layout.addView(selectedCodexSessionText);
+
+        Switch consent = new Switch(this);
+        consent.setText("전체 공개 대화 수집에 동의합니다");
+        layout.addView(consent);
+
+        Button attachAndSync = new Button(this);
+        attachAndSync.setText("선택 세션 연결 및 지금 수집");
+        attachAndSync.setOnClickListener(view -> attachAndSyncCodexSession(attachAndSync, consent));
+        layout.addView(attachAndSync);
+
+        Button syncMore = new Button(this);
+        syncMore.setText("추가 대화 동기화");
+        syncMore.setOnClickListener(view -> syncExistingCodexSession(syncMore));
+        layout.addView(syncMore);
+
+        Button finalize = new Button(this);
+        finalize.setText("Finalize 및 저장");
+        finalize.setOnClickListener(view -> finalizeCodexSession(finalize));
+        layout.addView(finalize);
+
+        codexCaptureStatusText = new TextView(this);
+        codexCaptureStatusText.setText("Codex 저장 상태: 대기");
+        codexCaptureStatusText.setPadding(0, padding / 2, 0, padding / 2);
+        layout.addView(codexCaptureStatusText);
+
+        Button openViewer = new Button(this);
+        openViewer.setText("Knowledge Viewer에서 열기");
+        openViewer.setOnClickListener(view -> openKnowledgeViewer());
+        layout.addView(openViewer);
+
+        knowledgeViewerUrl = captureDependencies.settings.knowledgeViewerUrl();
+        String savedCapture = captureDependencies.settings.codexCaptureSessionId();
+        if (!savedCapture.isEmpty()) {
+            codexCaptureStatusText.setText("이전 Codex capture session: " + savedCapture);
+        }
+    }
+
+    private void loadCodexSessions(Button button) {
+        String url = captureDependencies.settings.serverUrl();
+        String key = captureDependencies.settings.controlApiKey();
+        if (url.isEmpty() || key.isEmpty()) {
+            Toast.makeText(this, "서버 주소와 제어 API 키를 먼저 저장하세요.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        button.setEnabled(false);
+        codexCaptureStatusText.setText("최근 Codex 세션을 조회 중입니다…");
+        codexExecutor.execute(() -> {
+            try {
+                List<CodexProject> projects = ApiClient.listCodexProjects(url, key);
+                List<CodexSessionSummary> sessions = ApiClient.listCodexSessions(url, key);
+                runOnUiThread(() -> {
+                    button.setEnabled(true);
+                    codexProjectSpinner.setAdapter(new ArrayAdapter<>(
+                            this,
+                            android.R.layout.simple_spinner_dropdown_item,
+                            projects
+                    ));
+                    showCodexSessions(sessions);
+                });
+            } catch (Exception error) {
+                runOnUiThread(() -> {
+                    button.setEnabled(true);
+                    codexCaptureStatusText.setText("Codex 세션 목록을 조회하지 못했습니다.");
+                });
+            }
+        });
+    }
+
+    private void showCodexSessions(List<CodexSessionSummary> sessions) {
+        if (sessions.isEmpty()) {
+            codexCaptureStatusText.setText("조회 가능한 공개 Codex 세션이 없습니다.");
+            return;
+        }
+        String[] labels = new String[sessions.size()];
+        for (int index = 0; index < sessions.size(); index++) {
+            labels[index] = sessions.get(index).label();
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("저장할 실제 Codex 세션")
+                .setItems(labels, (dialog, index) -> {
+                    selectedCodexSession = sessions.get(index);
+                    selectedCodexSessionText.setText(selectedCodexSession.label());
+                    codexCaptureStatusText.setText("세션을 선택했습니다. 전체 공개 대화 수집에 동의한 뒤 연결하세요.");
+                })
+                .setNegativeButton("취소", null)
+                .show();
+    }
+
+    private void attachAndSyncCodexSession(Button button, Switch consent) {
+        Object selectedProject = codexProjectSpinner.getSelectedItem();
+        if (selectedCodexSession == null || !(selectedProject instanceof CodexProject)) {
+            Toast.makeText(this, "Codex 세션과 등록 프로젝트를 선택하세요.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (!consent.isChecked()) {
+            Toast.makeText(this, "전체 공개 대화 수집 동의가 필요합니다.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        String url = captureDependencies.settings.serverUrl();
+        String key = captureDependencies.settings.controlApiKey();
+        CodexProject project = (CodexProject) selectedProject;
+        button.setEnabled(false);
+        codexCaptureStatusText.setText("MDE capture session을 만들고 공개 대화를 수집 중입니다…");
+        codexExecutor.execute(() -> {
+            try {
+                String captureId = ApiClient.startCodexCapture(
+                        url,
+                        key,
+                        project.projectId,
+                        selectedCodexSession.title
+                );
+                ApiClient.attachCodexSession(
+                        url,
+                        key,
+                        captureId,
+                        selectedCodexSession.sourceSessionId,
+                        true
+                );
+                CodexCaptureStatus result = ApiClient.syncCodexSession(url, key, captureId);
+                captureDependencies.settings.setCodexCaptureSessionId(captureId);
+                runOnUiThread(() -> {
+                    button.setEnabled(true);
+                    codexCaptureStatusText.setText(result.label() + " · finalize 전");
+                });
+            } catch (Exception error) {
+                runOnUiThread(() -> {
+                    button.setEnabled(true);
+                    codexCaptureStatusText.setText("Codex 대화 수집에 실패했습니다. 기존 클립보드 저장은 계속 사용할 수 있습니다.");
+                });
+            }
+        });
+    }
+
+    private void syncExistingCodexSession(Button button) {
+        runCodexCaptureAction(button, false);
+    }
+
+    private void finalizeCodexSession(Button button) {
+        runCodexCaptureAction(button, true);
+    }
+
+    private void runCodexCaptureAction(Button button, boolean finalize) {
+        String captureId = captureDependencies.settings.codexCaptureSessionId();
+        if (captureId.isEmpty()) {
+            Toast.makeText(this, "먼저 Codex 세션을 연결하세요.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        button.setEnabled(false);
+        codexCaptureStatusText.setText(finalize ? "Finalize 및 저장 중입니다…" : "추가 공개 대화를 동기화 중입니다…");
+        codexExecutor.execute(() -> {
+            try {
+                CodexCaptureStatus result = finalize
+                        ? ApiClient.finalizeCodexSession(
+                                captureDependencies.settings.serverUrl(),
+                                captureDependencies.settings.controlApiKey(),
+                                captureId
+                        )
+                        : ApiClient.syncCodexSession(
+                                captureDependencies.settings.serverUrl(),
+                                captureDependencies.settings.controlApiKey(),
+                                captureId
+                        );
+                if (!result.viewerUrl.isEmpty()) {
+                    knowledgeViewerUrl = result.viewerUrl;
+                    captureDependencies.settings.setKnowledgeViewerUrl(result.viewerUrl);
+                }
+                runOnUiThread(() -> {
+                    button.setEnabled(true);
+                    codexCaptureStatusText.setText(result.label());
+                });
+            } catch (Exception error) {
+                runOnUiThread(() -> {
+                    button.setEnabled(true);
+                    codexCaptureStatusText.setText("Codex 저장 작업에 실패했습니다. 다시 시도할 수 있습니다.");
+                });
+            }
+        });
+    }
+
+    private void openKnowledgeViewer() {
+        if (knowledgeViewerUrl.isEmpty()) {
+            Toast.makeText(this, "저장 완료 응답에 Knowledge Viewer 주소가 없습니다.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(knowledgeViewerUrl)));
     }
 
     private void searchParentDocuments(Button button, String rawQuery) {
@@ -488,6 +749,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        codexExecutor.shutdownNow();
         executor.shutdownNow();
         super.onDestroy();
     }

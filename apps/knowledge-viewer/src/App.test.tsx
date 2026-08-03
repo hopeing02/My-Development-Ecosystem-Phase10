@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, expect, test, vi } from "vitest";
 
 import App from "./App";
-import { getGraph, searchDocuments } from "./api";
+import { getDocument, getGraph, searchDocuments } from "./api";
 
 vi.mock("./api", () => ({
   listSources: vi.fn().mockResolvedValue([
@@ -22,6 +22,16 @@ vi.mock("./GraphView", () => ({
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  window.history.replaceState({}, "", "/");
+});
+
+test("opens a document deep link from the mobile capture app", async () => {
+  window.history.replaceState({}, "", "/?sourceId=ks-001&documentId=ks-001%3A%3Adoc-1");
+
+  render(<App />);
+
+  await waitFor(() => expect(getDocument).toHaveBeenCalledWith("ks-001", "ks-001::doc-1", false));
+  expect(await screen.findByText("Preview")).toBeInTheDocument();
 });
 
 test("auto-selects a non-sensitive source and opens document detail", async () => {

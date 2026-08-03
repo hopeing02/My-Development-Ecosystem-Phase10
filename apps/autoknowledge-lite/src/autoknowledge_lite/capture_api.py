@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -15,14 +16,19 @@ from typing import Any, Protocol
 from uuid import uuid4
 
 from fastapi import FastAPI, Request, status
-from fastapi.exceptions import RequestValidationError
 from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from autoknowledge_lite.capture_relations import (
+    CaptureRelationRepository,
+    CaptureRelationService,
+)
 from autoknowledge_lite.models import ALLOWED_VAULT_FOLDERS
 
 SCHEMA_VERSION = "1.0"
+LOGGER = logging.getLogger(__name__)
 MAX_CLIPBOARD_BYTES = 1024 * 1024
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 SENSITIVE_PATTERNS = (
@@ -53,16 +59,6 @@ class SourceType(StrEnum):
 class CaptureDevice(StrEnum):
     ANDROID = "android"
     WINDOWS = "windows"
-
-
-class RelationType(StrEnum):
-    EXCERPT_OF = "excerpt_of"
-    BELONGS_TO_PROJECT = "belongs_to_project"
-    PARENT_OF = "parent_of"
-    REFERENCES = "references"
-    CHANGED_FILE = "changed_file"
-    TESTED_BY = "tested_by"
-    SUPERSEDES = "supersedes"
 
 
 class ClipboardItemPayload(BaseModel):
@@ -199,15 +195,6 @@ class CaptureEnvelope(BaseModel):
         else:
             DevelopmentSessionPayload.model_validate(self.payload)
         return self
-
-
-class CaptureRelation(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    relation_type: RelationType = Field(alias="relationType")
-    from_capture_id: str = Field(alias="fromCaptureId")
-    to_entity_type: str = Field(alias="toEntityType")
-    to_entity_id: str = Field(alias="toEntityId")
 
 
 class CaptureResult(BaseModel):
@@ -961,11 +948,26 @@ class DevelopmentSessionHandler:
 
 
 class CaptureApplicationService:
-    def __init__(self, registry: CaptureHandlerRegistry) -> None:
+    def __init__(
+        self,
+        registry: CaptureHandlerRegistry,
+        relation_service: CaptureRelationService | None = None,
+    ) -> None:
         self.registry = registry
+        self.relation_service = relation_service
 
     def capture(self, envelope: CaptureEnvelope) -> CaptureResult:
-        return self.registry.resolve(envelope.capture_type).handle(envelope)
+        result = self.registry.resolve(envelope.capture_type).handle(envelope)
+        if self.relation_service is not None:
+            try:
+                self.relation_service.record_capture(envelope, result)
+            except Exception:
+                LOGGER.exception(
+                    "Capture relation processing failed for %s", envelope.capture_id
+                )
+                if "RELATION_PROCESSING_FAILED" not in result.warnings:
+                    result.warnings.append("RELATION_PROCESSING_FAILED")
+        return result
 
 
 def create_capture_service(
@@ -976,6 +978,7 @@ def create_capture_service(
     knowledge_source: str = "autoknowledge-vault",
 ) -> CaptureApplicationService:
     index_store = CaptureIndexStore(data_dir / "capture-index-v1.json")
+    relation_service = CaptureRelationService(CaptureRelationRepository(data_dir))
     return CaptureApplicationService(
         CaptureHandlerRegistry(
             (
@@ -992,7 +995,8 @@ def create_capture_service(
                     knowledge_source=knowledge_source,
                 ),
             )
-        )
+        ),
+        relation_service,
     )
 
 

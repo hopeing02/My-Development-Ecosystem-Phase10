@@ -13,6 +13,14 @@ interface InstallPromptEvent extends Event {
 }
 
 export default function App() {
+  const [deepLink] = useState(() => {
+    const parameters = new URLSearchParams(window.location.search);
+    return {
+      sourceId: parameters.get("sourceId") ?? "",
+      documentId: parameters.get("documentId") ?? "",
+    };
+  });
+  const [deepLinkHandled, setDeepLinkHandled] = useState(false);
   const [sources, setSources] = useState<KnowledgeSource[]>([]);
   const [source, setSource] = useState<KnowledgeSource | null>(null);
   const [pendingSensitive, setPendingSensitive] = useState<KnowledgeSource | null>(null);
@@ -50,10 +58,17 @@ export default function App() {
     listSources()
       .then((items) => {
         setSources(items);
-        setSource(items.find((item) => item.enabled && !item.sensitive) ?? null);
+        const requested = items.find((item) => item.id === deepLink.sourceId && item.enabled);
+        const fallback = items.find((item) => item.enabled && !item.sensitive) ?? null;
+        if (requested?.sensitive) {
+          setSource(fallback);
+          setPendingSensitive(requested);
+        } else {
+          setSource(requested ?? fallback);
+        }
       })
       .catch((reason: Error) => setError(reason.message));
-  }, []);
+  }, [deepLink.sourceId]);
 
   useEffect(() => {
     const protect = (event: BeforeUnloadEvent) => {
@@ -189,6 +204,18 @@ export default function App() {
       setError((reason as Error).message);
     }
   }, [detail?.sourceId, graph?.nodes, mayDiscard, source, sources]);
+
+  useEffect(() => {
+    if (
+      deepLinkHandled
+      || !deepLink.documentId
+      || !source
+      || source.id !== deepLink.sourceId
+      || !confirmed
+    ) return;
+    setDeepLinkHandled(true);
+    void selectNode(deepLink.documentId, true, deepLink.sourceId);
+  }, [confirmed, deepLink, deepLinkHandled, selectNode, source]);
 
   const saveDocument = async (request: DocumentUpdateRequest) => {
     if (!detail) return;

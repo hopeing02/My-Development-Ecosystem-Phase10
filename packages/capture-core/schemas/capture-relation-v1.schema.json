@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mde.local/schemas/capture-relation-v1.schema.json",
+  "title": "Capture Relation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "relationId", "relationType", "fromEntityType", "fromCaptureId",
+    "toEntityType", "toCaptureId", "status", "confidence", "score",
+    "matchMethod", "evidence", "createdAt", "updatedAt", "createdBy", "metadata"
+  ],
+  "properties": {
+    "relationId": {"type": "string", "pattern": "^rel_"},
+    "relationType": {"const": "excerpt_of"},
+    "fromEntityType": {"const": "capture"},
+    "fromCaptureId": {"type": "string", "minLength": 1},
+    "toEntityType": {"const": "capture"},
+    "toCaptureId": {"type": "string", "minLength": 1},
+    "status": {"enum": ["suggested", "confirmed", "rejected", "stale", "removed"]},
+    "confidence": {"enum": ["high", "medium", "low"]},
+    "score": {"type": "integer", "minimum": 0},
+    "matchMethod": {"enum": ["exact_message_hash", "substring_match", "contiguous_message_group", "manual"]},
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clipboardContentHash", "matchedMessageIds", "matchRatio", "targetRevision"],
+      "properties": {
+        "clipboardContentHash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "matchedMessageId": {"type": ["string", "null"]},
+        "matchedMessageIds": {"type": "array", "maxItems": 5, "items": {"type": "string"}},
+        "matchedContentHash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "matchRatio": {"type": "number", "minimum": 0, "maximum": 1},
+        "timeDeltaSeconds": {"type": ["integer", "null"], "minimum": 0},
+        "sameProject": {"type": ["boolean", "null"]},
+        "targetRevision": {"type": "integer", "minimum": 1}
+      }
+    },
+    "createdAt": {"type": "string", "format": "date-time"},
+    "updatedAt": {"type": "string", "format": "date-time"},
+    "createdBy": {"enum": ["system", "user"]},
+    "metadata": {"type": "object"}
+  }
+}

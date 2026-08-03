@@ -19,18 +19,20 @@ from autoknowledge_lite.ai import (
     KnowledgeAnalyzer,
     analyzer_from_environment,
 )
-from autoknowledge_lite.content import (
-    ContentFetcher,
-    ContentFetchError,
-    HttpContentFetcher,
-    should_fetch_content,
-)
 from autoknowledge_lite.capture_api import (
     CaptureApplicationService,
     CaptureError,
     create_capture_service,
     install_capture_api,
     legacy_share_to_envelope,
+)
+from autoknowledge_lite.capture_relations import install_relation_api
+from autoknowledge_lite.codex_control import CodexController, install_codex_control_api
+from autoknowledge_lite.content import (
+    ContentFetcher,
+    ContentFetchError,
+    HttpContentFetcher,
+    should_fetch_content,
 )
 from autoknowledge_lite.git_sync import GitNoteSync, GitSyncError, NoteSync
 from autoknowledge_lite.markdown import MarkdownRenderError, render_markdown
@@ -55,7 +57,7 @@ from autoknowledge_lite.store import (
 )
 
 LOGGER = logging.getLogger(__name__)
-APP_VERSION = "0.2.2"
+APP_VERSION = "0.2.3"
 ANDROID_APK_PATH = (
     Path(__file__).resolve().parents[2]
     / "android"
@@ -92,6 +94,7 @@ def create_app(
     mde_client: KnowledgeIndexer | None = None,
     android_apk_path: Path | None = None,
     capture_service: CaptureApplicationService | None = None,
+    codex_controller: CodexController | None = None,
 ) -> FastAPI:
     """Create an API application with an injectable persistence boundary."""
 
@@ -125,6 +128,9 @@ def create_app(
         knowledge_source=knowledge_source,
     )
     install_capture_api(application, unified_capture_service)
+    if unified_capture_service.relation_service is not None:
+        install_relation_api(application, unified_capture_service.relation_service)
+    install_codex_control_api(application, codex_controller)
 
     @application.get("/v1/status", response_model=StatusResponse)
     async def get_status() -> StatusResponse:
