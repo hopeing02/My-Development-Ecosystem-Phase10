@@ -211,6 +211,8 @@ class CodexCaptureService:
             "notes": [],
             "tests": [],
             "messages": [],
+            "codexChangedFiles": [],
+            "codexDiffs": [],
         }
         self._transition(session, "CAPTURING")
         _write_json(session_dir / "before-snapshot.json", before)
@@ -407,6 +409,7 @@ class CodexCaptureService:
         transmit: bool,
     ) -> dict[str, Any]:
         previous_messages = session.get("messages", [])
+        previous_activity_hash = self._activity_hash(session)
         previous_hashes = {item.get("contentHash") for item in previous_messages}
         by_source_id = {item.get("sourceMessageId"): item for item in previous_messages}
         for item in result["messages"]:
@@ -421,7 +424,8 @@ class CodexCaptureService:
             messages.append(item)
         for sequence, item in enumerate(messages, 1):
             item["sequence"] = sequence
-        self._merge_codex_commands(session, messages)
+        self._merge_codex_activity(session, messages)
+        activity_changed = previous_activity_hash != self._activity_hash(session)
         new_count = sum(
             item.get("contentHash") not in previous_hashes for item in messages
         )
@@ -442,7 +446,11 @@ class CodexCaptureService:
         _write_json(session_dir / "session-state.json", session)
         self._refresh_conversation_artifacts(session_dir, session)
         transmitted = False
-        if transmit and new_count and (session_dir / "envelope.json").exists():
+        if (
+            transmit
+            and (new_count or activity_changed)
+            and (session_dir / "envelope.json").exists()
+        ):
             try:
                 response = self._post(_read_json(session_dir / "envelope.json", {}))
                 session["serverResult"] = response
@@ -481,18 +489,53 @@ class CodexCaptureService:
             "totalMessages": len(messages),
             "parseStatus": result["parseStatus"],
             "warnings": result["warnings"],
+            "activityProjectionChanged": activity_changed,
             "transmitted": transmitted,
         }
+
+    @staticmethod
+    def _activity_hash(session: dict[str, Any]) -> str:
+        value = {
+            key: session.get(key, [])
+            for key in ("commands", "tests", "codexChangedFiles", "codexDiffs")
+        }
+        return hashlib.sha256(
+            json.dumps(
+                value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            ).encode("utf-8")
+        ).hexdigest()
+
+    @classmethod
+    def _merge_codex_activity(
+        cls, session: dict[str, Any], messages: list[dict[str, Any]]
+    ) -> None:
+        cls._merge_codex_commands(session, messages)
+        cls._merge_codex_file_changes(session, messages)
 
     @staticmethod
     def _merge_codex_commands(
         session: dict[str, Any], messages: list[dict[str, Any]]
     ) -> None:
-        wrapper_commands = session.get("commands", [])
+        wrapper_commands = [
+            command
+            for command in session.get("commands", [])
+            if command.get("captureMethod") != "codex_session"
+        ]
+        wrapper_ids = {command.get("commandId") for command in wrapper_commands}
+        session["commands"] = wrapper_commands
+        session["tests"] = [
+            test
+            for test in session.get("tests", [])
+            if test.get("commandId") in wrapper_ids
+        ]
         for message in messages:
             if message.get("messageType") != "command":
                 continue
-            command_text = str(message.get("content", "")).split("\n\n", 1)[0].strip()
+            content_parts = str(message.get("content", "")).split("\n\n", 1)
+            command_text = content_parts[0].strip()
+            output = content_parts[1] if len(content_parts) > 1 else ""
+            if not command_text:
+                continue
             for command in wrapper_commands:
                 if str(command.get("command", "")).strip() != command_text:
                     continue
@@ -505,6 +548,119 @@ class CodexCaptureService:
                 command["captureSources"] = sources
                 message["relatedCommandIds"] = [command["commandId"]]
                 break
+            else:
+                metadata = message.get("metadata") or {}
+                exit_code = metadata.get("exitCode")
+                source_status = str(metadata.get("status") or "").casefold()
+                timed_out = source_status in {"timedout", "timed_out", "timeout"}
+                status = (
+                    "TIMED_OUT"
+                    if timed_out
+                    else (
+                        "PASSED"
+                        if exit_code == 0
+                        else (
+                            "FAILED"
+                            if exit_code is not None
+                            or source_status in {"failed", "error"}
+                            else "UNKNOWN"
+                        )
+                    )
+                )
+                category, tool = classify_command([command_text])
+                source_id = str(
+                    message.get("sourceMessageId") or message.get("messageId") or ""
+                )
+                digest = hashlib.sha256(source_id.encode("utf-8")).hexdigest()[:16]
+                record = {
+                    "commandId": f"cmd_codex_{digest}",
+                    "command": command_text,
+                    "workingDirectory": metadata.get("cwd") or "%REPO_ROOT%",
+                    "startedAt": message.get("createdAt"),
+                    "endedAt": message.get("createdAt"),
+                    "durationMs": metadata.get("durationMs"),
+                    "exitCode": exit_code,
+                    "timedOut": timed_out,
+                    "stdout": output,
+                    "stderr": "",
+                    "captureMethod": "codex_session",
+                    "captureSources": ["codex_session"],
+                    "sourceMessageId": source_id,
+                    "category": category,
+                    "tool": tool,
+                    "status": status,
+                }
+                session["commands"].append(record)
+                message["relatedCommandIds"] = [record["commandId"]]
+                if category != "GENERAL":
+                    session["tests"].append(parse_quality_result(record, output))
+
+    @staticmethod
+    def _merge_codex_file_changes(
+        session: dict[str, Any], messages: list[dict[str, Any]]
+    ) -> None:
+        by_path: dict[str, dict[str, Any]] = {}
+        diffs: list[dict[str, Any]] = []
+        seen_diffs: set[str] = set()
+        change_types = {
+            "add": "added",
+            "added": "added",
+            "create": "added",
+            "update": "modified",
+            "modified": "modified",
+            "delete": "deleted",
+            "deleted": "deleted",
+            "rename": "renamed",
+            "renamed": "renamed",
+        }
+        for message in messages:
+            if message.get("messageType") != "patch":
+                continue
+            metadata = message.get("metadata") or {}
+            source_id = str(
+                message.get("sourceMessageId") or message.get("messageId") or ""
+            )
+            for change in metadata.get("changes") or []:
+                path = str(change.get("path") or "").replace("\\", "/").strip()
+                if not path:
+                    continue
+                kind = str(change.get("kind") or "unknown").casefold()
+                existing = by_path.get(path, {})
+                sources = list(existing.get("sourceMessageIds") or [])
+                if source_id and source_id not in sources:
+                    sources.append(source_id)
+                by_path[path] = {
+                    **existing,
+                    "path": path,
+                    "oldPath": change.get("oldPath") or existing.get("oldPath"),
+                    "changeType": change_types.get(kind, kind),
+                    "attribution": "CODEX_SESSION_EVENT",
+                    "attributionConfidence": (
+                        "high"
+                        if str(metadata.get("status") or "").casefold() == "completed"
+                        else "medium"
+                    ),
+                    "captureSources": ["codex_session"],
+                    "sourceMessageIds": sources,
+                }
+            content = str(message.get("content") or "")
+            if not content:
+                continue
+            digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+            if digest in seen_diffs:
+                continue
+            seen_diffs.add(digest)
+            diffs.append(
+                {
+                    "type": "diff",
+                    "name": f"codex-{digest[:16]}.patch",
+                    "content": content,
+                    "sourceMessageId": source_id,
+                    "captureMethod": "codex_session",
+                }
+            )
+        session["codexChangedFiles"] = list(by_path.values())
+        session["codexDiffs"] = diffs
 
     def _refresh_conversation_artifacts(
         self, session_dir: Path, session: dict[str, Any]
@@ -531,6 +687,20 @@ class CodexCaptureService:
                         if item.get("role") == "user"
                     ),
                     None,
+                ),
+                "commands": session.get("commands", []),
+                "tests": session.get("tests", []),
+                "changedFiles": self._merge_changed_files(
+                    self._without_codex_changed_files(payload.get("changedFiles", [])),
+                    session.get("codexChangedFiles", []),
+                ),
+                "attachments": self._merge_attachments(
+                    [
+                        item
+                        for item in payload.get("attachments", [])
+                        if item.get("captureMethod") != "codex_session"
+                    ],
+                    session.get("codexDiffs", []),
                 ),
             }
         )
@@ -1019,7 +1189,78 @@ class CodexCaptureService:
         return value
 
     @staticmethod
+    def _merge_changed_files(
+        primary: list[dict[str, Any]], derived: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        merged = [dict(item) for item in primary]
+        by_path = {str(item.get("path") or ""): item for item in merged}
+        for item in derived:
+            path = str(item.get("path") or "")
+            if not path:
+                continue
+            existing = by_path.get(path)
+            if existing is None:
+                added = dict(item)
+                merged.append(added)
+                by_path[path] = added
+                continue
+            sources = list(existing.get("captureSources") or ["git_snapshot"])
+            if "codex_session" not in sources:
+                sources.append("codex_session")
+            existing["captureSources"] = sources
+            existing["sourceMessageIds"] = list(item.get("sourceMessageIds") or [])
+            if item.get("attributionConfidence") == "high":
+                existing["gitAttribution"] = existing.get("attribution")
+                existing["attribution"] = item.get("attribution")
+                existing["attributionConfidence"] = "high"
+        return merged
+
+    @staticmethod
+    def _without_codex_changed_files(
+        values: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = []
+        for value in values:
+            sources = list(value.get("captureSources") or [])
+            if sources == ["codex_session"]:
+                continue
+            item = dict(value)
+            item.pop("sourceMessageIds", None)
+            if "gitAttribution" in item:
+                item["attribution"] = item.pop("gitAttribution")
+            if "codex_session" in sources:
+                remaining = [source for source in sources if source != "codex_session"]
+                if remaining:
+                    item["captureSources"] = remaining
+                else:
+                    item.pop("captureSources", None)
+            result.append(item)
+        return result
+
+    @staticmethod
+    def _merge_attachments(
+        primary: list[dict[str, Any]], derived: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        merged = [dict(item) for item in primary]
+        seen = {
+            hashlib.sha256(str(item.get("content") or "").encode("utf-8")).hexdigest()
+            for item in merged
+            if item.get("content")
+        }
+        for item in derived:
+            content = str(item.get("content") or "")
+            if not content:
+                continue
+            digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+            if digest in seen:
+                continue
+            seen.add(digest)
+            merged.append(dict(item))
+        return merged
+
+    @classmethod
     def _payload(
+        cls,
         session: dict[str, Any],
         before: dict[str, Any],
         after: dict[str, Any],
@@ -1062,17 +1303,22 @@ class CodexCaptureService:
             "adapter": session.get("codexSessionAdapter"),
             "notes": session["notes"],
             "commands": session["commands"],
-            "changedFiles": changes,
+            "changedFiles": cls._merge_changed_files(
+                changes, session.get("codexChangedFiles", [])
+            ),
             "tests": session["tests"],
-            "attachments": [
-                {
-                    "type": "patch",
-                    "name": name,
-                    "localPath": name,
-                    "content": redact_text(patches[name])[0],
-                }
-                for name in ("session.patch", "staged.patch", "unstaged.patch")
-            ],
+            "attachments": cls._merge_attachments(
+                [
+                    {
+                        "type": "patch",
+                        "name": name,
+                        "localPath": name,
+                        "content": redact_text(patches[name])[0],
+                    }
+                    for name in ("session.patch", "staged.patch", "unstaged.patch")
+                ],
+                session.get("codexDiffs", []),
+            ),
         }
 
 

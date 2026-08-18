@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from mde.codex_capture.security import redact_text
+from mde.codex_capture.security import is_sensitive_path, redact_text
 
 ADAPTER_VERSION = "1.0.0"
 MAX_MESSAGE_BYTES = 256 * 1024
@@ -440,13 +440,28 @@ def normalize_item(
         )
     elif item_type == "fileChange":
         role, message_type = "tool", "patch"
-        content = "\n\n".join(
-            str(change.get("diff") or "")
+        safe_changes = [
+            change
             for change in item.get("changes") or []
             if isinstance(change, dict)
-        )
+            and change.get("path")
+            and not is_sensitive_path(str(change["path"]))
+        ]
+        content = "\n\n".join(str(change.get("diff") or "") for change in safe_changes)
         metadata["patchType"] = "codex_displayed_patch"
         metadata["appliedState"] = "unknown"
+        metadata["status"] = item.get("status")
+        metadata["changes"] = [
+            {
+                key: change.get(key)
+                for key in ("path", "kind", "diff", "oldPath")
+                if change.get(key) is not None
+            }
+            for change in safe_changes
+        ]
+        omitted = len(item.get("changes") or []) - len(safe_changes)
+        if omitted:
+            metadata["sensitiveChangesOmitted"] = omitted
     elif item_type in {
         "mcpToolCall",
         "dynamicToolCall",

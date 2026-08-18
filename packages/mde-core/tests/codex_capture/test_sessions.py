@@ -104,6 +104,9 @@ def test_normalize_thread_preserves_public_events_and_excludes_reasoning() -> No
     assert "secret-value" not in result["messages"][0]["content"]
     assert result["messages"][2]["messageType"] == "command"
     assert result["messages"][3]["metadata"]["appliedState"] == "unknown"
+    assert result["messages"][3]["metadata"]["changes"] == [
+        {"path": "tracked.txt", "kind": "update", "diff": "+after"}
+    ]
     assert result["parseStatus"] == "partial"
     assert "CODEX_MESSAGE_ROLE_UNKNOWN" in result["warnings"]
     assert all(len(item["contentHash"]) == 64 for item in result["messages"])
@@ -294,6 +297,65 @@ def test_command_event_merges_capture_sources(tmp_path: Path, repository: Path) 
     assert command_message["relatedCommandIds"] == [command["commandId"]]
 
 
+def test_session_events_create_commands_tests_files_and_diffs_without_wrapper(
+    tmp_path: Path, repository: Path
+) -> None:
+    service = CodexCaptureService(root=tmp_path / "collector")
+    service.register("demo", repository)
+    session = service.start("demo", "automatic activity projection")
+    export = tmp_path / "thread.json"
+    export.write_text(json.dumps({"thread": public_thread()}), encoding="utf-8")
+
+    service.import_codex_session(session["captureSessionId"], export, consent=True)
+    state = service.load_session(session["captureSessionId"])
+
+    assert len(state["commands"]) == 1
+    assert state["commands"][0]["captureMethod"] == "codex_session"
+    assert state["commands"][0]["stdout"] == "1 passed"
+    assert state["tests"] == [
+        {
+            "commandId": state["commands"][0]["commandId"],
+            "category": "TEST",
+            "framework": "pytest",
+            "status": "PASSED",
+            "exitCode": 0,
+            "passed": 1,
+        }
+    ]
+    assert state["codexChangedFiles"][0]["path"] == "tracked.txt"
+    assert state["codexChangedFiles"][0]["changeType"] == "modified"
+    assert state["codexDiffs"][0]["content"] == "+after"
+
+    service.finalize(session_id=session["captureSessionId"], transmit=False)
+    payload = json.loads(
+        (service.sessions_dir / session["captureSessionId"] / "session.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert len(payload["commands"]) == 1
+    assert len(payload["tests"]) == 1
+    assert payload["changedFiles"][0]["path"] == "tracked.txt"
+    assert any(
+        item["type"] == "diff" and item["content"] == "+after"
+        for item in payload["attachments"]
+    )
+
+
+def test_session_file_change_omits_sensitive_paths() -> None:
+    thread = public_thread()
+    thread["turns"][0]["items"][4]["changes"].append(  # type: ignore[index]
+        {"path": ".env", "kind": "update", "diff": "+TOKEN=not-for-export"}
+    )
+
+    result = normalize_thread(thread)
+    patch = next(item for item in result["messages"] if item["messageType"] == "patch")
+
+    assert patch["metadata"]["sensitiveChangesOmitted"] == 1
+    assert [item["path"] for item in patch["metadata"]["changes"]] == ["tracked.txt"]
+    assert "not-for-export" not in patch["content"]
+
+
 def test_attached_session_sync_updates_same_capture_revision_and_deduplicates(
     tmp_path: Path,
     repository: Path,
@@ -334,7 +396,75 @@ def test_attached_session_sync_updates_same_capture_revision_and_deduplicates(
     assert second["transmitted"] is False
     assert len(posted) == 1
     assert posted[0]["captureId"] == capture_id
+    assert len(posted[0]["payload"]["commands"]) == 1  # type: ignore[index]
+    assert len(posted[0]["payload"]["tests"]) == 1  # type: ignore[index]
+    assert posted[0]["payload"]["changedFiles"][0]["path"] == "tracked.txt"  # type: ignore[index]
+    assert any(  # type: ignore[index]
+        item["type"] == "diff" for item in posted[0]["payload"]["attachments"]
+    )
     assert service.load_session(capture_id)["state"] == "SAVED"
+
+
+def test_sync_transmits_new_activity_projection_when_messages_are_unchanged(
+    tmp_path: Path,
+    repository: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import mde.codex_capture.service as service_module
+
+    service = CodexCaptureService(root=tmp_path / "collector")
+    service.register("demo", repository)
+    session = service.start("demo", "projection upgrade")
+    capture_id = session["captureSessionId"]
+    service.attach_codex_session(capture_id, "thr_public", consent=True)
+
+    class FakeAdapter:
+        def read_session(
+            self,
+            reference: dict[str, object],
+            checkpoint: SessionCheckpoint | None,
+        ) -> dict[str, object]:
+            return normalize_thread(public_thread(), checkpoint=checkpoint)
+
+    monkeypatch.setattr(service_module, "CodexAppSessionAdapter", FakeAdapter)
+    service.finalize(session_id=capture_id, transmit=False)
+    session_dir = service.sessions_dir / capture_id
+
+    state = service.load_session(capture_id)
+    state["commands"] = []
+    state["tests"] = []
+    state["codexChangedFiles"] = []
+    state["codexDiffs"] = []
+    (session_dir / "session-state.json").write_text(json.dumps(state), encoding="utf-8")
+    payload = json.loads((session_dir / "session.json").read_text(encoding="utf-8"))
+    payload["commands"] = []
+    payload["tests"] = []
+    payload["changedFiles"] = []
+    payload["attachments"] = []
+    (session_dir / "session.json").write_text(json.dumps(payload), encoding="utf-8")
+    envelope = json.loads((session_dir / "envelope.json").read_text(encoding="utf-8"))
+    envelope["payload"] = payload
+    (session_dir / "envelope.json").write_text(json.dumps(envelope), encoding="utf-8")
+
+    posted: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        service,
+        "_post",
+        lambda value: posted.append(value)
+        or {"status": "saved", "captureId": capture_id, "revision": 2},
+    )
+
+    result = service.sync_codex_session(capture_id)
+
+    assert result["newMessages"] == 0
+    assert result["activityProjectionChanged"] is True
+    assert result["transmitted"] is True
+    assert len(posted[0]["payload"]["commands"]) == 1  # type: ignore[index]
+    assert len(posted[0]["payload"]["tests"]) == 1  # type: ignore[index]
+    assert posted[0]["payload"]["changedFiles"][0]["path"] == "tracked.txt"  # type: ignore[index]
+    assert any(  # type: ignore[index]
+        item["type"] == "diff" for item in posted[0]["payload"]["attachments"]
+    )
 
 
 def test_discovery_marks_active_repository_candidate_without_exposing_path(

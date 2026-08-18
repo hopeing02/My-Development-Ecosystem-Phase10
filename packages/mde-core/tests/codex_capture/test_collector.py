@@ -114,6 +114,21 @@ def test_security_redacts_quoted_secret_assignment() -> None:
     assert "[REDACTED]" in value
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        "900101-1234567",
+        "4111 1111 1111 1111",
+    ],
+)
+def test_security_redacts_sensitive_numeric_identifiers(value: str) -> None:
+    redacted, changed = redact_text(value)
+
+    assert changed is True
+    assert value not in redacted
+    assert redacted == "[REDACTED]"
+
+
 def test_register_start_run_finalize_creates_artifacts_and_queue(
     tmp_path: Path, repository: Path
 ) -> None:

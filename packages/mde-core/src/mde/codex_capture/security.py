@@ -26,6 +26,8 @@ SECRET_PATTERNS = (
     re.compile(
         r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"
     ),
+    re.compile(r"(?<!\d)\d{6}-?[1-4]\d{6}(?!\d)"),
+    re.compile(r"(?<!\d)(?:\d[ -]?){15}\d(?!\d)"),
 )
 
 
