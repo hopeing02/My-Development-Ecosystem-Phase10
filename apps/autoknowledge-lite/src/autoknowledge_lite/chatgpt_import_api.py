@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 
 from autoknowledge_lite.chatgpt_archive import ChatGPTArchiveError
 from autoknowledge_lite.chatgpt_import import ChatGPTImportError, ChatGPTImportService
+from autoknowledge_lite.chatgpt_import import ChatGPTImportResult
 from autoknowledge_lite.chatgpt_session_source import (
     DEFAULT_MAX_ARCHIVE_BYTES,
     ChatGPTSessionSourceError,
@@ -33,7 +34,7 @@ def install_chatgpt_import_api(
 
     @application.post("/api/v1/chatgpt/imports", response_model=None)
     async def import_chatgpt_export(request: Request) -> dict[str, Any] | JSONResponse:
-        if response := _authorize(request):
+        if response := authorize_control_request(request):
             return response
         content_type = request.headers.get("content-type", "").split(";", 1)[0].strip()
         if content_type not in {"application/zip", "application/octet-stream"}:
@@ -67,32 +68,7 @@ def install_chatgpt_import_api(
                 os.fsync(target.fileno())
             upload_path.chmod(0o600)
             result = service.import_export(upload_path)
-            return {
-                "status": (
-                    "partial"
-                    if result.failed_sessions
-                    else (
-                        "duplicate"
-                        if result.raw_duplicate and not result.projected_sessions
-                        else "imported"
-                    )
-                ),
-                "importId": result.import_id,
-                "rawDuplicate": result.raw_duplicate,
-                "discoveredSessions": result.discovered_sessions,
-                "projectedSessions": result.projected_sessions,
-                "duplicateSessions": result.duplicate_sessions,
-                "failedSessions": result.failed_sessions,
-                "warnings": [
-                    {
-                        "code": issue.code,
-                        "sessionId": issue.session_id,
-                        "sourceMember": issue.source_member,
-                        "sourceIndex": issue.source_index,
-                    }
-                    for issue in result.issues
-                ],
-            }
+            return chatgpt_import_result_payload(result)
         except ChatGPTSessionSourceError as error:
             raise HTTPException(
                 status_code=(
@@ -120,7 +96,7 @@ def install_chatgpt_import_api(
             _remove_stage(stage, incoming_root)
 
 
-def _authorize(request: Request) -> JSONResponse | None:
+def authorize_control_request(request: Request) -> JSONResponse | None:
     configured = os.getenv("AUTOKNOWLEDGE_CONTROL_API_KEY", "").strip()
     if not configured:
         return JSONResponse(
@@ -145,6 +121,37 @@ def _authorize(request: Request) -> JSONResponse | None:
             },
         )
     return None
+
+
+def chatgpt_import_result_payload(result: ChatGPTImportResult) -> dict[str, Any]:
+    """Return the common safe response without raw paths or source content."""
+
+    return {
+        "status": (
+            "partial"
+            if result.failed_sessions
+            else (
+                "duplicate"
+                if result.raw_duplicate and not result.projected_sessions
+                else "imported"
+            )
+        ),
+        "importId": result.import_id,
+        "rawDuplicate": result.raw_duplicate,
+        "discoveredSessions": result.discovered_sessions,
+        "projectedSessions": result.projected_sessions,
+        "duplicateSessions": result.duplicate_sessions,
+        "failedSessions": result.failed_sessions,
+        "warnings": [
+            {
+                "code": issue.code,
+                "sessionId": issue.session_id,
+                "sourceMember": issue.source_member,
+                "sourceIndex": issue.source_index,
+            }
+            for issue in result.issues
+        ],
+    }
 
 
 def _upload_filename(value: str) -> str:

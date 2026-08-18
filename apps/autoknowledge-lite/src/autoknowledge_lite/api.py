@@ -34,6 +34,10 @@ from autoknowledge_lite.capture_query import (
 from autoknowledge_lite.codex_control import CodexController, install_codex_control_api
 from autoknowledge_lite.chatgpt_import import ChatGPTImportService
 from autoknowledge_lite.chatgpt_import_api import install_chatgpt_import_api
+from autoknowledge_lite.chatgpt_shared_import import ChatGPTSharedImportService
+from autoknowledge_lite.chatgpt_shared_import_api import (
+    install_chatgpt_shared_import_api,
+)
 from autoknowledge_lite.content import (
     ContentFetcher,
     ContentFetchError,
@@ -102,6 +106,7 @@ def create_app(
     capture_service: CaptureApplicationService | None = None,
     codex_controller: CodexController | None = None,
     chatgpt_import_service: ChatGPTImportService | None = None,
+    chatgpt_shared_import_service: ChatGPTSharedImportService | None = None,
 ) -> FastAPI:
     """Create an API application with an injectable persistence boundary."""
 
@@ -145,6 +150,10 @@ def create_app(
     install_chatgpt_import_api(
         application,
         chatgpt_import_service or ChatGPTImportService(share_store.root),
+    )
+    install_chatgpt_shared_import_api(
+        application,
+        chatgpt_shared_import_service or ChatGPTSharedImportService(share_store.root),
     )
 
     @application.get("/v1/status", response_model=StatusResponse)
