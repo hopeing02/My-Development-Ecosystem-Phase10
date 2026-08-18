@@ -24,6 +24,7 @@ class FakeCodexController:
     def __init__(self) -> None:
         self.attached = False
         self.synced = False
+        self.inspected_sessions: list[str] = []
 
     def doctor(self):
         return [{"name": "app_server", "status": "ok", "path": "C:/Users/private"}]
@@ -50,6 +51,7 @@ class FakeCodexController:
         ]
 
     def inspect_codex_session(self, source_session_id: str):
+        self.inspected_sessions.append(source_session_id)
         return {
             "sourceSessionId": source_session_id,
             "title": "Public title",
@@ -146,6 +148,24 @@ def test_control_api_requires_bearer_key_and_hides_paths(
     assert "source-1" in serialized
     assert "C:/Users" not in serialized
     assert "mobile-secret" not in serialized
+
+
+def test_mobile_session_list_does_not_inspect_every_session(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("AUTOKNOWLEDGE_CONTROL_API_KEY", "mobile-secret")
+    controller = FakeCodexController()
+    client = make_client(tmp_path, controller)
+
+    response = client.get(
+        "/api/v1/mobile/codex/sessions",
+        headers={"Authorization": "Bearer mobile-secret"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["sessions"][0]["sourceSessionId"] == "source-1"
+    assert "messageCount" not in response.json()["sessions"][0]
+    assert controller.inspected_sessions == []
 
 
 def test_mobile_attach_requires_explicit_consent(tmp_path: Path, monkeypatch) -> None:

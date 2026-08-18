@@ -16,6 +16,18 @@ $stderrLog = Join-Path $logDirectory "knowledge-viewer.err.log"
 $captureStdoutLog = Join-Path $logDirectory "autoknowledge-capture.out.log"
 $captureStderrLog = Join-Path $logDirectory "autoknowledge-capture.err.log"
 
+foreach ($variableName in @(
+    "AUTOKNOWLEDGE_CONTROL_API_KEY",
+    "AUTOKNOWLEDGE_VIEWER_URL",
+    "MDE_CODEX_EXECUTABLE",
+    "MDE_CODEX_CONVERSATION_CAPTURE"
+)) {
+    $userValue = [Environment]::GetEnvironmentVariable($variableName, "User")
+    if (-not [string]::IsNullOrWhiteSpace($userValue)) {
+        Set-Item -Path "Env:$variableName" -Value $userValue
+    }
+}
+
 New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
 
 if (-not (Test-Path -LiteralPath $mdeExecutable)) {

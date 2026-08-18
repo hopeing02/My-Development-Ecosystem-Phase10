@@ -3,6 +3,18 @@ $pythonPath = Join-Path $appRoot ".venv\Scripts\python.exe"
 $logDirectory = Join-Path $appRoot "logs"
 $serverLog = Join-Path $logDirectory "server-autostart.log"
 
+foreach ($variableName in @(
+    "AUTOKNOWLEDGE_CONTROL_API_KEY",
+    "AUTOKNOWLEDGE_VIEWER_URL",
+    "MDE_CODEX_EXECUTABLE",
+    "MDE_CODEX_CONVERSATION_CAPTURE"
+)) {
+    $userValue = [Environment]::GetEnvironmentVariable($variableName, "User")
+    if (-not [string]::IsNullOrWhiteSpace($userValue)) {
+        Set-Item -Path "Env:$variableName" -Value $userValue
+    }
+}
+
 New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
 
 if (-not (Test-Path -LiteralPath $pythonPath -PathType Leaf)) {

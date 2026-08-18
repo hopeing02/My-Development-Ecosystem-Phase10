@@ -137,20 +137,14 @@ def install_codex_control_api(
             return response
 
         def discover(service: CodexController) -> list[dict[str, Any]]:
-            result: list[dict[str, Any]] = []
-            for item in service.discover_codex_sessions()[:limit]:
-                safe = _safe_discovered(item)
-                try:
-                    details = service.inspect_codex_session(
-                        str(item["sourceSessionId"])
-                    )
-                    safe["messageCount"] = int(details.get("messages", 0))
-                except (
-                    Exception
-                ):  # noqa: BLE001 - one unreadable thread must not hide the list.
-                    safe["messageCount"] = None
-                result.append(safe)
-            return result
+            # Keep discovery to one app-server request. Reading every thread here
+            # made the mobile list perform an N+1 sequence of subprocess calls and
+            # routinely exceed the Android HTTP timeout. Full details are loaded
+            # only after the user selects a session.
+            return [
+                _safe_discovered(item)
+                for item in service.discover_codex_sessions()[:limit]
+            ]
 
         result = invoke(discover)
         if isinstance(result, JSONResponse):
