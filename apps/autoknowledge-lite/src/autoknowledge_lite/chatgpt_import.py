@@ -329,7 +329,7 @@ class ChatGPTImportService:
         failed_sessions = 0
         for session_ref in archived_discovery.sessions:
             source_session = archived_source.read_session(session_ref)
-            source_hash = self._source_content_hash(source_session)
+            source_hash = chatgpt_source_content_hash(source_session)
             try:
                 projection = self.adapter.project(source_session)
             except ChatGPTKnowledgeAdapterError as error:
@@ -388,19 +388,21 @@ class ChatGPTImportService:
             )
 
     @staticmethod
-    def _source_content_hash(source_session: dict[str, object]) -> str:
-        canonical = json.dumps(
-            source_session,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-    @staticmethod
     def _source_issue(warning: ChatGPTSourceWarning) -> ChatGPTImportIssue:
         return ChatGPTImportIssue(
             code=warning.code,
             source_member=warning.source_member,
             source_index=warning.source_index,
         )
+
+
+def chatgpt_source_content_hash(source_session: dict[str, object]) -> str:
+    """Return the shared canonical source hash used by all ChatGPT imports."""
+
+    canonical = json.dumps(
+        source_session,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
