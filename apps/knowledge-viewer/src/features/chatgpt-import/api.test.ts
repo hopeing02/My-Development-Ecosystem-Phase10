@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { importChatGPTExport } from "./api";
+import { importChatGPTExport, importChatGPTSharedLink } from "./api";
 
 describe("ChatGPT import API", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -56,5 +56,36 @@ describe("ChatGPT import API", () => {
       code: "CHATGPT_EXPORT_INVALID",
       message: "Invalid ZIP.",
     });
+  });
+
+  it("submits one explicit shared URL as authenticated JSON", async () => {
+    const result = {
+      status: "imported",
+      importId: "chatgpt_shared_123",
+      rawDuplicate: false,
+      discoveredSessions: 1,
+      projectedSessions: 1,
+      duplicateSessions: 0,
+      failedSessions: 0,
+      warnings: [],
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await importChatGPTSharedLink("https://chatgpt.com/share/conversation-1", "secret");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/chatgpt/shared-imports",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ Authorization: "Bearer secret" }),
+        body: JSON.stringify({ url: "https://chatgpt.com/share/conversation-1" }),
+      }),
+    );
   });
 });

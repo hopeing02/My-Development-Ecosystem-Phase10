@@ -17,6 +17,9 @@ h1 { margin: 2px 0 0; font-size: 24px; }
 .chatgpt-import-panel { width: min(680px, 100%); margin: 0 auto; padding: 30px; border: 1px solid #dce2ef; border-radius: 14px; background: white; box-shadow: 0 10px 35px rgba(24, 42, 83, .08); }
 .chatgpt-import-panel h2 { margin: 8px 0 12px; color: #17213d; font-size: 24px; text-transform: none; letter-spacing: 0; }
 .chatgpt-import-panel > p { color: #56617d; line-height: 1.6; }
+.chatgpt-import-panel form h3 { margin: 20px 0 8px; }
+.chatgpt-shared-form { margin-top: 24px; padding-top: 4px; border-top: 1px solid #dce2ef; }
+.chatgpt-shared-form > p { margin-top: 0; color: #687493; font-size: 13px; line-height: 1.5; }
 .security-note { margin: 8px 0 16px; color: #687493; font-size: 12px; }
 .chatgpt-import-submit { width: 100%; padding: 10px; border: 0; border-radius: 6px; color: white; background: #315fce; }
 .chatgpt-import-submit:disabled { cursor: not-allowed; opacity: .5; }

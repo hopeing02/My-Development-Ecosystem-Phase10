@@ -34,6 +34,39 @@ export async function importChatGPTExport(
   return payload;
 }
 
+export async function importChatGPTSharedLink(
+  sharedUrl: string,
+  controlApiKey: string,
+): Promise<ChatGPTImportResult> {
+  return requestImport({
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${controlApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ url: sharedUrl }),
+  });
+}
+
+async function requestImport(init: RequestInit): Promise<ChatGPTImportResult> {
+  const response = await fetch("/api/v1/chatgpt/shared-imports", {
+    method: "POST",
+    ...init,
+  });
+  const payload = (await response.json().catch(() => null)) as unknown;
+  if (!response.ok) {
+    const error = readError(payload);
+    throw new ChatGPTImportApiError(error.code, error.message);
+  }
+  if (!isImportResult(payload)) {
+    throw new ChatGPTImportApiError(
+      "CHATGPT_IMPORT_RESPONSE_INVALID",
+      "가져오기 응답 형식을 확인할 수 없습니다.",
+    );
+  }
+  return payload;
+}
+
 function readError(payload: unknown): { code: string; message: string } {
   const record = asRecord(payload);
   const detail = asRecord(record?.detail);

@@ -3,11 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatGPTImportPanel } from "./ChatGPTImportPanel";
 
-const api = vi.hoisted(() => ({ importChatGPTExport: vi.fn() }));
+const api = vi.hoisted(() => ({
+  importChatGPTExport: vi.fn(),
+  importChatGPTSharedLink: vi.fn(),
+}));
 
 vi.mock("./api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./api")>()),
   importChatGPTExport: api.importChatGPTExport,
+  importChatGPTSharedLink: api.importChatGPTSharedLink,
 }));
 
 describe("ChatGPTImportPanel", () => {
@@ -23,6 +27,16 @@ describe("ChatGPTImportPanel", () => {
       duplicateSessions: 0,
       failedSessions: 1,
       warnings: [{ code: "CHATGPT_SESSION_DAMAGED", sessionId: "session-3" }],
+    });
+    api.importChatGPTSharedLink.mockResolvedValue({
+      status: "imported",
+      importId: "chatgpt_shared_123",
+      rawDuplicate: false,
+      discoveredSessions: 1,
+      projectedSessions: 1,
+      duplicateSessions: 0,
+      failedSessions: 0,
+      warnings: [],
     });
   });
 
@@ -48,5 +62,26 @@ describe("ChatGPTImportPanel", () => {
   it("keeps import disabled until both inputs are present", () => {
     render(<ChatGPTImportPanel />);
     expect(screen.getByRole("button", { name: "로컬로 가져오기" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "공유 링크 가져오기" })).toBeDisabled();
+  });
+
+  it("imports only the explicitly submitted public shared link", async () => {
+    render(<ChatGPTImportPanel />);
+    fireEvent.change(screen.getByLabelText("Control API Key"), {
+      target: { value: "local-secret" },
+    });
+    fireEvent.change(screen.getByLabelText("ChatGPT Shared Link"), {
+      target: { value: "https://chatgpt.com/share/conversation-1" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "공유 링크 가져오기" }));
+
+    await waitFor(() =>
+      expect(api.importChatGPTSharedLink).toHaveBeenCalledWith(
+        "https://chatgpt.com/share/conversation-1",
+        "local-secret",
+      ),
+    );
+    expect(await screen.findByText("가져오기 완료")).toBeInTheDocument();
   });
 });
