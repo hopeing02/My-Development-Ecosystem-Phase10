@@ -24,7 +24,7 @@ def test_chatgpt_share_extracts_embedded_conversation_text() -> None:
     )
     html = f"<html><script>window.data=[{json.dumps(loader_data)}]</script></html>"
 
-    extracted = extract_web_content("https://chatgpt.com/s/example", html)
+    extracted = extract_web_content("https://chatgpt.com/share/example", html)
 
     assert extracted == message.strip()
 

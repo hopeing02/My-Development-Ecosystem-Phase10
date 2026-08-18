@@ -75,7 +75,9 @@ def should_fetch_content(record: ShareRecord) -> bool:
 
 def extract_web_content(url: str, html: str) -> str:
     host = (urlparse(url).hostname or "").lower()
-    if host in {"chatgpt.com", "www.chatgpt.com"} and "/s/" in urlparse(url).path:
+    if host in {"chatgpt.com", "www.chatgpt.com"} and urlparse(url).path.startswith(
+        ("/s/", "/share/")
+    ):
         shared_content = _extract_chatgpt_share(html)
         if shared_content:
             return shared_content
