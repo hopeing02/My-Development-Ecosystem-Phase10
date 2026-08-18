@@ -83,3 +83,13 @@ test("offers installation when the browser provides an install prompt", async ()
   await waitFor(() => expect(prompt).toHaveBeenCalledOnce());
   await waitFor(() => expect(screen.queryByRole("button", { name: "앱 설치" })).not.toBeInTheDocument());
 });
+
+test("opens the ChatGPT export importer without replacing document navigation", async () => {
+  render(<App />);
+
+  fireEvent.click(screen.getByRole("button", { name: "ChatGPT" }));
+  expect(screen.getByRole("heading", { name: "ChatGPT 실제 세션 가져오기" })).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "문서" }));
+  expect(await screen.findByRole("heading", { name: "Source" })).toBeInTheDocument();
+});

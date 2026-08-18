@@ -13,6 +13,20 @@ h1 { margin: 2px 0 0; font-size: 24px; }
 .primary-navigation button.active { color: white; background: #315fce; }
 .install-app { padding: 8px 12px; border: 1px solid #6389e8; border-radius: 20px; color: white; background: #315fce; }
 .stats { padding: 8px 12px; border: 1px solid #344467; border-radius: 20px; color: #bdc9e7; font-size: 13px; }
+.chatgpt-import-workspace { min-height: calc(100vh - 86px); padding: 42px 24px; background: #eef2f9; }
+.chatgpt-import-panel { width: min(680px, 100%); margin: 0 auto; padding: 30px; border: 1px solid #dce2ef; border-radius: 14px; background: white; box-shadow: 0 10px 35px rgba(24, 42, 83, .08); }
+.chatgpt-import-panel h2 { margin: 8px 0 12px; color: #17213d; font-size: 24px; text-transform: none; letter-spacing: 0; }
+.chatgpt-import-panel > p { color: #56617d; line-height: 1.6; }
+.security-note { margin: 8px 0 16px; color: #687493; font-size: 12px; }
+.chatgpt-import-submit { width: 100%; padding: 10px; border: 0; border-radius: 6px; color: white; background: #315fce; }
+.chatgpt-import-submit:disabled { cursor: not-allowed; opacity: .5; }
+.chatgpt-import-panel .error { margin-top: 18px; border-radius: 8px; }
+.chatgpt-import-result { margin-top: 20px; padding: 18px; border: 1px solid #a9d8bd; border-radius: 10px; background: #effaf3; }
+.chatgpt-import-result.partial { border-color: #e2c36f; background: #fff9e8; }
+.chatgpt-import-result h3 { margin: 0 0 12px; }
+.chatgpt-import-result dl { grid-template-columns: 1fr auto; margin: 0; background: rgba(255, 255, 255, .72); }
+.chatgpt-import-warnings h4 { margin-bottom: 8px; }
+.chatgpt-import-warnings ul { margin: 0; padding-left: 20px; color: #704b0c; }
 .workspace { display: grid; grid-template-columns: 270px minmax(420px, 1fr) 330px; height: calc(100vh - 86px); }
 .sidebar, .detail-panel { padding: 20px; overflow: auto; background: white; }
 .sidebar { border-right: 1px solid #dce2ef; }

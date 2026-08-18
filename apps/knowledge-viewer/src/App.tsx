@@ -6,6 +6,7 @@ import { GraphView } from "./GraphView";
 import { DocumentEditor } from "./DocumentEditor";
 import { LinkResolutionDialog } from "./LinkResolutionDialog";
 import { CaptureWorkspace } from "./features/captures/CaptureWorkspace";
+import { ChatGPTImportPanel } from "./features/chatgpt-import/ChatGPTImportPanel";
 import { getCaptureBacklinks } from "./features/captures/api";
 import type { CaptureSummary } from "./features/captures/types";
 import type { CommandResult, DocumentDetail, DocumentUpdateRequest, KnowledgeGraph, KnowledgeSource, LinkOccurrence, SearchResult, TagCount } from "./types";
@@ -16,7 +17,7 @@ interface InstallPromptEvent extends Event {
 }
 
 export default function App() {
-  const [viewMode, setViewMode] = useState<"documents" | "captures">("documents");
+  const [viewMode, setViewMode] = useState<"documents" | "captures" | "chatgpt">("documents");
   const [captureToOpen, setCaptureToOpen] = useState<string>();
   const [captureBacklinks, setCaptureBacklinks] = useState<Array<CaptureSummary & { relationType: string }>>([]);
   const [deepLink] = useState(() => {
@@ -292,12 +293,13 @@ export default function App() {
           <nav className="primary-navigation" aria-label="통합 자료 탐색">
             <button className={viewMode === "documents" ? "active" : ""} onClick={() => setViewMode("documents")}>문서</button>
             <button className={viewMode === "captures" ? "active" : ""} onClick={() => setViewMode("captures")}>Capture</button>
+            <button className={viewMode === "chatgpt" ? "active" : ""} onClick={() => setViewMode("chatgpt")}>ChatGPT</button>
           </nav>
           {installPrompt && <button className="install-app" onClick={() => void installApp()}>앱 설치</button>}
-          <div className="stats">{viewMode === "captures" ? "통합 Capture Viewer" : loading ? "불러오는 중…" : graph ? `${graph.returnedDocumentCount} 문서 · ${graph.edges.length} 연결` : "대기 중"}</div>
+          <div className="stats">{viewMode === "captures" ? "통합 Capture Viewer" : viewMode === "chatgpt" ? "로컬 Export 가져오기" : loading ? "불러오는 중…" : graph ? `${graph.returnedDocumentCount} 문서 · ${graph.edges.length} 연결` : "대기 중"}</div>
         </div>
       </header>
-      {viewMode === "captures" ? <CaptureWorkspace initialCaptureId={captureToOpen} /> : <>
+      {viewMode === "captures" ? <CaptureWorkspace initialCaptureId={captureToOpen} /> : viewMode === "chatgpt" ? <ChatGPTImportPanel /> : <>
       {error && <div className="error" role="alert">{error}<button aria-label="오류 닫기" onClick={() => setError("")}>×</button></div>}
       {notice && <div className="notice" role="status">{notice}{indexRetry && <button className="retry-index" onClick={() => void retryIndex()}>다시 색인</button>}<button aria-label="알림 닫기" onClick={() => setNotice("")}>×</button></div>}
       {graph?.truncated && <div className="warning">전체 {graph.totalDocumentCount.toLocaleString()}개 문서 중 연결도가 높은 {graph.returnedDocumentCount.toLocaleString()}개를 표시합니다.</div>}
