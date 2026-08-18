@@ -16,6 +16,9 @@ from autoknowledge_lite.capture_relations import (
     CaptureRelationService,
     ingest_existing_captures,
 )
+from autoknowledge_lite.chatgpt_archive import ChatGPTArchiveError
+from autoknowledge_lite.chatgpt_import import ChatGPTImportError, ChatGPTImportService
+from autoknowledge_lite.chatgpt_session_source import ChatGPTSessionSourceError
 from autoknowledge_lite.mde_client import MDEClientError, MDEKnowledgeClient
 from autoknowledge_lite.obsidian import ObsidianNoteStore
 from autoknowledge_lite.store import JsonShareStore
@@ -37,6 +40,11 @@ def build_parser() -> argparse.ArgumentParser:
     retry = actions.add_parser("retry-index", help="Retry one saved file index.")
     retry.add_argument("--source", required=True)
     retry.add_argument("--path", required=True)
+    chatgpt_import = actions.add_parser(
+        "chatgpt-import", help="Import a local ChatGPT Data Export ZIP."
+    )
+    chatgpt_import.add_argument("archive", type=Path)
+    chatgpt_import.add_argument("--data-dir", type=Path)
     relations = actions.add_parser(
         "capture-relations", help="Manage excerpt_of Capture relations."
     )
@@ -96,6 +104,40 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(f"색인 완료: {result.get('documentId', args.path)}")
             return 0
+        if args.action == "chatgpt-import":
+            root = args.data_dir or JsonShareStore().root
+            result = ChatGPTImportService(root).import_export(args.archive)
+            if result.failed_sessions:
+                import_status = "partial"
+            elif result.raw_duplicate and not result.projected_sessions:
+                import_status = "duplicate"
+            else:
+                import_status = "imported"
+            print(
+                json.dumps(
+                    {
+                        "status": import_status,
+                        "importId": result.import_id,
+                        "rawDuplicate": result.raw_duplicate,
+                        "discoveredSessions": result.discovered_sessions,
+                        "projectedSessions": result.projected_sessions,
+                        "duplicateSessions": result.duplicate_sessions,
+                        "failedSessions": result.failed_sessions,
+                        "warnings": [
+                            {
+                                "code": issue.code,
+                                "sessionId": issue.session_id,
+                                "sourceMember": issue.source_member,
+                                "sourceIndex": issue.source_index,
+                            }
+                            for issue in result.issues
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
         if args.action == "capture-relations" and args.relation_action == "backfill":
             root = args.data_dir or JsonShareStore().root
             temporary = tempfile.TemporaryDirectory() if args.dry_run else None
@@ -143,6 +185,22 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         build_parser().print_help()
         return 2
+    except (
+        ChatGPTArchiveError,
+        ChatGPTImportError,
+        ChatGPTSessionSourceError,
+    ) as error:
+        print(
+            json.dumps(
+                {
+                    "status": "error",
+                    "error": {"code": error.code, "message": str(error)},
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 1
     except MDEClientError as error:
         print(f"MDE 연동 오류: {error.code}")
         return 1
