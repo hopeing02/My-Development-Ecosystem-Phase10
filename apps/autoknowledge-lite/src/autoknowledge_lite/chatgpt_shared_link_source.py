@@ -46,7 +46,7 @@ class ChatGPTSharedLinkSource:
         self.shared_url = shared_url
         self.snapshot_path = snapshot_path.resolve()
         self.max_snapshot_bytes = max_snapshot_bytes
-        self.share_id = self._share_id(shared_url)
+        self.share_id = chatgpt_share_id(shared_url)
 
     def discover_sessions(self) -> ChatGPTSourceDiscovery:
         records = self._records()
@@ -231,33 +231,35 @@ class ChatGPTSharedLinkSource:
     def _optional_text(value: Any) -> str | None:
         return value.strip() if isinstance(value, str) and value.strip() else None
 
-    @staticmethod
-    def _share_id(url: str) -> str:
-        parsed = urlsplit(url)
-        try:
-            port = parsed.port
-        except ValueError as error:
-            raise ChatGPTSharedLinkSourceError(
-                "CHATGPT_SHARED_URL_INVALID",
-                "Shared link contains an invalid port",
-            ) from error
-        if (
-            parsed.scheme != "https"
-            or (parsed.hostname or "").casefold() != "chatgpt.com"
-            or port not in {None, 443}
-            or parsed.username is not None
-            or parsed.password is not None
-            or parsed.query
-            or parsed.fragment
-        ):
-            raise ChatGPTSharedLinkSourceError(
-                "CHATGPT_SHARED_URL_INVALID",
-                "Shared link must be an HTTPS chatgpt.com URL without credentials or parameters",
-            )
-        match = SHARE_PATH_PATTERN.fullmatch(parsed.path)
-        if not match:
-            raise ChatGPTSharedLinkSourceError(
-                "CHATGPT_SHARED_URL_INVALID",
-                "Shared link must use /share/<conversation-ID>",
-            )
-        return match.group(1)
+
+def chatgpt_share_id(url: str) -> str:
+    """Validate a canonical public ChatGPT shared-link URL and return its source id."""
+
+    parsed = urlsplit(url)
+    try:
+        port = parsed.port
+    except ValueError as error:
+        raise ChatGPTSharedLinkSourceError(
+            "CHATGPT_SHARED_URL_INVALID",
+            "Shared link contains an invalid port",
+        ) from error
+    if (
+        parsed.scheme != "https"
+        or (parsed.hostname or "").casefold() != "chatgpt.com"
+        or port not in {None, 443}
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ChatGPTSharedLinkSourceError(
+            "CHATGPT_SHARED_URL_INVALID",
+            "Shared link must be an HTTPS chatgpt.com URL without credentials or parameters",
+        )
+    match = SHARE_PATH_PATTERN.fullmatch(parsed.path)
+    if not match:
+        raise ChatGPTSharedLinkSourceError(
+            "CHATGPT_SHARED_URL_INVALID",
+            "Shared link must use /share/<conversation-ID>",
+        )
+    return match.group(1)
