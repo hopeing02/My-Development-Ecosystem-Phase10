@@ -6,14 +6,15 @@ import type { CaptureGraphData } from "./types";
 interface Props {
   graph: CaptureGraphData | null;
   onOpenCapture: (captureId: string) => void;
+  onOpenTask: (taskId: string) => void;
 }
 
 const COLORS: Record<string, string> = {
   DOCUMENT: "#4f7cff", PROJECT: "#9b59b6", CLIPBOARD_CAPTURE: "#2f9e72",
-  DEVELOPMENT_SESSION: "#e07824", FILE: "#697386", COMMAND: "#40536d", TEST_RESULT: "#c14545",
+  DEVELOPMENT_SESSION: "#e07824", TASK: "#d09a18", FILE: "#697386", COMMAND: "#40536d", TEST_RESULT: "#c14545",
 };
 
-export function CaptureGraph({ graph, onOpenCapture }: Props) {
+export function CaptureGraph({ graph, onOpenCapture, onOpenTask }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const instance = useRef<Core | null>(null);
   const [description, setDescription] = useState("");
@@ -37,6 +38,7 @@ export function CaptureGraph({ graph, onOpenCapture }: Props) {
     next.on("tap", "node", (event) => {
       const type = String(event.target.data("type"));
       if (type === "CLIPBOARD_CAPTURE" || type === "DEVELOPMENT_SESSION") onOpenCapture(event.target.id());
+      else if (type === "TASK") onOpenTask(event.target.id());
       else setDescription(`${typeLabel(type)} 노드, ${event.target.data("label")}`);
     });
     next.on("tap", "edge", (event) => {
@@ -44,18 +46,20 @@ export function CaptureGraph({ graph, onOpenCapture }: Props) {
     });
     instance.current = next;
     return () => { instance.current = null; next.destroy(); };
-  }, [graph, onOpenCapture]);
+  }, [graph, onOpenCapture, onOpenTask]);
 
   return <div className="capture-graph-shell">
+    {graph && graph.nodes.length === 0 && <p className="graph-empty">그래프에 표시할 자료가 없습니다.</p>}
+    {graph && graph.nodes.length > 0 && graph.edges.length === 0 && <p className="graph-empty">이 세션에 연결된 그래프 관계가 없습니다.</p>}
     <div ref={container} className="capture-graph-canvas" aria-label="Capture 지식 그래프" />
     {description && <p className="graph-description" aria-live="polite">{description}</p>}
   </div>;
 }
 
 function typeLabel(type: string) {
-  return ({ DOCUMENT: "문서", PROJECT: "프로젝트", FILE: "파일", COMMAND: "명령", TEST_RESULT: "테스트" } as Record<string, string>)[type] ?? "Capture";
+  return ({ DOCUMENT: "문서", PROJECT: "프로젝트", TASK: "Task", FILE: "파일", COMMAND: "명령", TEST_RESULT: "테스트" } as Record<string, string>)[type] ?? "Capture";
 }
 
 function relationLabel(type: string) {
-  return ({ parent_of: "상위 주제", references: "문서 참조", belongs_to_project: "프로젝트 소속", excerpt_of: "전체 세션 포함", changed_file: "파일 변경", executed_command: "명령 실행", tested_by: "테스트" } as Record<string, string>)[type] ?? type;
+  return ({ parent_of: "상위 주제", references: "문서 참조", belongs_to_project: "프로젝트 소속", excerpt_of: "전체 세션 포함", contains_task: "Task 포함", changed_file: "파일 변경", executed_command: "명령 실행", tested_by: "테스트", modifies: "Task 파일 변경", executes: "Task 명령 실행", runs: "Task 테스트" } as Record<string, string>)[type] ?? type;
 }

@@ -55,6 +55,21 @@ export interface CaptureDetail {
   changedFilesSummary?: { count: number };
   testsSummary?: { count: number; status: string };
   attachmentsSummary?: { count: number };
+  tasks?: TaskSummary[];
+}
+
+export interface TaskSummary {
+  taskId: string;
+  sessionId: string;
+  captureId: string;
+  title: string;
+  summary?: string;
+  status: string;
+  boundaryStatus: "suggested" | "confirmed" | "uncertain" | "manual";
+  confidence: number;
+  messageRange?: { startSequence: number; endSequence: number };
+  counts: { messages: number; changedFiles: number; commands: number; tests: number };
+  provenance: { source: "original" | "derived"; derivedBy?: string; sourceRefs: string[] };
 }
 
 export interface Page<T> {
@@ -66,7 +81,7 @@ export interface Page<T> {
 
 export interface CaptureGraphNode {
   id: string;
-  type: "DOCUMENT" | "PROJECT" | "CLIPBOARD_CAPTURE" | "DEVELOPMENT_SESSION" | "FILE" | "COMMAND" | "TEST_RESULT";
+  type: "DOCUMENT" | "PROJECT" | "CLIPBOARD_CAPTURE" | "DEVELOPMENT_SESSION" | "TASK" | "FILE" | "COMMAND" | "TEST_RESULT";
   label: string;
   metadata: Record<string, unknown>;
 }
@@ -86,4 +101,3 @@ export interface CaptureGraphData {
   limit: number;
   depth: number;
 }
-

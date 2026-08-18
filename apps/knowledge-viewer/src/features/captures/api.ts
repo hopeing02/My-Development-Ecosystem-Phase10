@@ -70,7 +70,7 @@ export function transitionRelation(relationId: string, action: "confirm" | "reje
 export function getCaptureGraph(options: { centerId?: string; projectId?: string; depth: number; includeCandidates: boolean; expanded: boolean }): Promise<CaptureGraphData> {
   const query = new URLSearchParams({ depth: String(options.depth), includeCandidates: String(options.includeCandidates) });
   if (options.projectId) query.set("projectId", options.projectId);
-  if (!options.expanded) query.set("nodeTypes", "DOCUMENT,PROJECT,CLIPBOARD_CAPTURE,DEVELOPMENT_SESSION,FILE");
+  if (!options.expanded) query.set("nodeTypes", "DOCUMENT,PROJECT,CLIPBOARD_CAPTURE,DEVELOPMENT_SESSION,TASK,FILE");
   const path = options.centerId ? `/api/v1/graph/neighborhood/${encodeURIComponent(options.centerId)}` : "/api/v1/graph";
   return request(`${path}?${query}`);
 }

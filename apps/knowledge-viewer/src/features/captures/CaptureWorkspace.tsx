@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getCapture, getCaptureDiffs, getCaptureGraph, getCaptureItems, listCaptures, transitionRelation, updateCapture, type CaptureFilters } from "./api";
 import { CaptureGraph } from "./CaptureGraph";
-import type { CaptureDetail, CaptureGraphData, CaptureRelation, CaptureSummary, Page } from "./types";
+import type { CaptureDetail, CaptureGraphData, CaptureRelation, CaptureSummary, Page, TaskSummary } from "./types";
 
 type SessionTab = "overview" | "messages" | "commands" | "changed-files" | "diffs" | "tests" | "related" | "metadata";
 
@@ -19,11 +19,13 @@ export function CaptureWorkspace({ initialCaptureId }: { initialCaptureId?: stri
   const [page, setPage] = useState<Page<CaptureSummary> | null>(null);
   const [detail, setDetail] = useState<CaptureDetail | null>(null);
   const [tab, setTab] = useState<SessionTab>("overview");
+  const [selectedTaskId, setSelectedTaskId] = useState<string>();
   const [tabData, setTabData] = useState<Record<string, Page<Record<string, unknown>> | { items: Record<string, unknown>[]; total: number }>>({});
   const [tabErrors, setTabErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [graphMode, setGraphMode] = useState(false);
+  const [graphCenterId, setGraphCenterId] = useState<string>();
   const [graph, setGraph] = useState<CaptureGraphData | null>(null);
   const [graphDepth, setGraphDepth] = useState(2);
   const [includeCandidates, setIncludeCandidates] = useState(false);
@@ -54,9 +56,11 @@ export function CaptureWorkspace({ initialCaptureId }: { initialCaptureId?: stri
       const next = await getCapture(captureId);
       setDetail(next);
       setTab("overview");
+      setSelectedTaskId(undefined);
       setTabData({});
       setTabErrors({});
       setGraphMode(false);
+      setGraphCenterId(undefined);
     } catch (reason) { setError((reason as Error).message); }
   }, []);
 
@@ -78,9 +82,9 @@ export function CaptureWorkspace({ initialCaptureId }: { initialCaptureId?: stri
   const loadGraph = useCallback(async () => {
     try {
       setError("");
-      setGraph(await getCaptureGraph({ centerId: detail?.capture.captureId, projectId: detail ? undefined : filters.projectId, depth: graphDepth, includeCandidates, expanded: expandedGraph }));
+      setGraph(await getCaptureGraph({ centerId: graphCenterId ?? detail?.capture.captureId, projectId: detail ? undefined : filters.projectId, depth: graphDepth, includeCandidates, expanded: expandedGraph }));
     } catch (reason) { setError((reason as Error).message); }
-  }, [detail, expandedGraph, filters.projectId, graphDepth, includeCandidates]);
+  }, [detail, expandedGraph, filters.projectId, graphCenterId, graphDepth, includeCandidates]);
 
   useEffect(() => { if (graphMode) void loadGraph(); }, [graphMode, loadGraph]);
 
@@ -120,7 +124,7 @@ export function CaptureWorkspace({ initialCaptureId }: { initialCaptureId?: stri
           <label className="check"><input type="checkbox" checked={expandedGraph} onChange={(event) => setExpandedGraph(event.target.checked)} />명령·테스트 노드</label>
         </div>
         {graph?.truncated && <div className="warning">연결된 항목이 많아 일부만 표시합니다. 필터를 좁혀 주세요.</div>}
-        <CaptureGraph graph={graph} onOpenCapture={(id) => void openCapture(id)} />
+        <CaptureGraph graph={graph} onOpenCapture={(id) => void openCapture(id)} onOpenTask={(id) => { setSelectedTaskId(id); setGraphMode(false); }} />
       </> : <>
         <div className="capture-list-heading"><h2>통합 자료</h2><span>{loading ? "불러오는 중…" : `${page?.total ?? 0}건`}</span></div>
         {!loading && page?.items.length === 0 && <div className="empty-state">조건에 맞는 Capture가 없습니다.</div>}
@@ -131,8 +135,8 @@ export function CaptureWorkspace({ initialCaptureId }: { initialCaptureId?: stri
 
     <aside className="capture-detail">
       {!detail ? <div className="empty-state">Capture를 선택하면 원문과 연결 정보를 확인할 수 있습니다.</div> : detail.capture.captureType === "clipboard_item"
-        ? <ClipboardDetail detail={detail} onOpen={openCapture} onUpdate={async (value) => { setDetail(await updateCapture(detail.capture.captureId, value)); await loadList(filters); }} onRelation={relationAction} onGraph={() => setGraphMode(true)} />
-        : <SessionDetail detail={detail} tab={tab} setTab={setTab} data={tabData[tab]} error={tabErrors[tab]} retry={() => void loadTab(tab, true)} onOpen={openCapture} onRelation={relationAction} onUpdate={async (value) => { setDetail(await updateCapture(detail.capture.captureId, value)); await loadList(filters); }} onGraph={() => setGraphMode(true)} />}
+        ? <ClipboardDetail detail={detail} onOpen={openCapture} onUpdate={async (value) => { setDetail(await updateCapture(detail.capture.captureId, value)); await loadList(filters); }} onRelation={relationAction} onGraph={() => { setGraphCenterId(undefined); setGraphMode(true); }} />
+        : <SessionDetail detail={detail} tab={tab} setTab={setTab} selectedTaskId={selectedTaskId} setSelectedTaskId={setSelectedTaskId} data={tabData[tab]} error={tabErrors[tab]} retry={() => void loadTab(tab, true)} onOpen={openCapture} onRelation={relationAction} onUpdate={async (value) => { setDetail(await updateCapture(detail.capture.captureId, value)); await loadList(filters); }} onGraph={(centerId) => { setGraphCenterId(centerId); setGraphMode(true); }} />}
     </aside>
   </section>;
 }
@@ -163,11 +167,24 @@ function ClipboardDetail({ detail, onOpen, onUpdate, onRelation, onGraph }: { de
   </div>;
 }
 
-function SessionDetail({ detail, tab, setTab, data, error, retry, onOpen, onRelation, onUpdate, onGraph }: { detail: CaptureDetail; tab: SessionTab; setTab: (tab: SessionTab) => void; data?: Page<Record<string, unknown>> | { items: Record<string, unknown>[]; total: number }; error?: string; retry: () => void; onOpen: (id: string) => Promise<void>; onRelation: (relation: CaptureRelation, action: "confirm" | "reject" | "remove") => Promise<void>; onUpdate: (value: Record<string, unknown>) => Promise<void>; onGraph: () => void }) {
+function SessionDetail({ detail, tab, setTab, selectedTaskId, setSelectedTaskId, data, error, retry, onOpen, onRelation, onUpdate, onGraph }: { detail: CaptureDetail; tab: SessionTab; setTab: (tab: SessionTab) => void; selectedTaskId?: string; setSelectedTaskId: (taskId?: string) => void; data?: Page<Record<string, unknown>> | { items: Record<string, unknown>[]; total: number }; error?: string; retry: () => void; onOpen: (id: string) => Promise<void>; onRelation: (relation: CaptureRelation, action: "confirm" | "reject" | "remove") => Promise<void>; onUpdate: (value: Record<string, unknown>) => Promise<void>; onGraph: (centerId?: string) => void }) {
+  const selectedTask = detail.tasks?.find((task) => task.taskId === selectedTaskId);
   return <div className="capture-detail-body session-detail"><span className="capture-badge source-codex">Codex 전체 작업</span><h2>{detail.capture.title}</h2>
-    <div className="session-tabs" role="tablist" aria-label="개발 세션 상세">{(Object.keys(TAB_LABELS) as SessionTab[]).map((item) => <button role="tab" aria-selected={tab === item} className={tab === item ? "active" : ""} key={item} onClick={() => setTab(item)}>{TAB_LABELS[item]}</button>)}</div>
-    {error ? <div className="tab-error" role="alert">{TAB_LABELS[tab]}을 불러오지 못했습니다.<button onClick={retry}>다시 시도</button></div> : <SessionTabContent detail={detail} tab={tab} data={data} onOpen={onOpen} onRelation={onRelation} onUpdate={onUpdate} onGraph={onGraph} />}
+    <div className="session-tabs" role="tablist" aria-label="개발 세션 상세">{(Object.keys(TAB_LABELS) as SessionTab[]).map((item) => <button role="tab" aria-selected={!selectedTask && tab === item} className={!selectedTask && tab === item ? "active" : ""} key={item} onClick={() => { setSelectedTaskId(undefined); setTab(item); }}>{TAB_LABELS[item]}</button>)}</div>
+    {selectedTask ? <TaskDetail task={selectedTask} onNavigate={(nextTab) => { setSelectedTaskId(undefined); setTab(nextTab); }} onGraph={() => onGraph(selectedTask.taskId)} /> : <>
+      <TaskNavigation tasks={detail.tasks ?? []} onOpen={setSelectedTaskId} />
+      {error ? <div className="tab-error" role="alert">{TAB_LABELS[tab]}을 불러오지 못했습니다.<button onClick={retry}>다시 시도</button></div> : <SessionTabContent detail={detail} tab={tab} data={data} onOpen={onOpen} onRelation={onRelation} onUpdate={onUpdate} onGraph={onGraph} />}
+    </>}
   </div>;
+}
+
+function TaskNavigation({ tasks, onOpen }: { tasks: TaskSummary[]; onOpen: (taskId: string) => void }) {
+  if (tasks.length === 0) return <p className="task-empty">이 세션에는 연결된 Task가 없습니다.</p>;
+  return <section className="task-navigation"><h3>관련 Task</h3>{tasks.map((task) => <button key={task.taskId} onClick={() => onOpen(task.taskId)}><strong>{task.title}</strong><small>{task.boundaryStatus === "suggested" ? "분류 후보" : task.boundaryStatus} · 신뢰도 {Math.round(task.confidence * 100)}%</small></button>)}</section>;
+}
+
+function TaskDetail({ task, onNavigate, onGraph }: { task: TaskSummary; onNavigate: (tab: SessionTab) => void; onGraph: () => void }) {
+  return <section className="task-detail"><span className="capture-badge">Task 상세</span><h3>{task.title}</h3><p>{task.summary || "Task 요약이 없습니다."}</p><dl><dt>상태</dt><dd>{captureStatusLabel(task.status)}</dd><dt>경계</dt><dd>{task.boundaryStatus === "suggested" ? "분류 후보" : task.boundaryStatus}</dd><dt>신뢰도</dt><dd>{Math.round(task.confidence * 100)}%</dd></dl><h4>원본 자료로 돌아가기</h4><div className="task-links"><button onClick={() => onNavigate("overview")}>세션 개요</button><button onClick={() => onNavigate("messages")}>원본 대화</button><button onClick={() => onNavigate("changed-files")}>원본 파일</button><button onClick={() => onNavigate("commands")}>원본 명령</button><button onClick={() => onNavigate("tests")}>원본 테스트</button><button onClick={onGraph}>그래프에서 Task 보기</button></div></section>;
 }
 
 function SessionTabContent({ detail, tab, data, onOpen, onRelation, onUpdate, onGraph }: { detail: CaptureDetail; tab: SessionTab; data?: Page<Record<string, unknown>> | { items: Record<string, unknown>[]; total: number }; onOpen: (id: string) => Promise<void>; onRelation: (relation: CaptureRelation, action: "confirm" | "reject" | "remove") => Promise<void>; onUpdate: (value: Record<string, unknown>) => Promise<void>; onGraph: () => void }) {

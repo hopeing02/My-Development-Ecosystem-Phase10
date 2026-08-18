@@ -118,6 +118,25 @@ def envelope(capture_id: str, *, failed: bool = False) -> dict[str, object]:
     }
 
 
+def empty_envelope(capture_id: str) -> dict[str, object]:
+    value = envelope(capture_id)
+    payload = value["payload"]
+    assert isinstance(payload, dict)
+    payload.update(
+        {
+            "request": None,
+            "summary": None,
+            "messages": [],
+            "commands": [],
+            "changedFiles": [],
+            "tests": [],
+            "attachments": [],
+        }
+    )
+    value["contentHash"] = digest(json.dumps(payload, ensure_ascii=False))
+    return value
+
+
 def test_list_filters_search_sort_and_cursor(tmp_path: Path) -> None:
     client = api(tmp_path)
     client.post("/api/v1/captures", json=envelope("cap_passed"))
@@ -125,16 +144,26 @@ def test_list_filters_search_sort_and_cursor(tmp_path: Path) -> None:
 
     failed = client.get(
         "/api/v1/captures",
-        params={"sourceType": "codex", "projectId": "autoknowledge-lite", "testStatus": "failed"},
+        params={
+            "sourceType": "codex",
+            "projectId": "autoknowledge-lite",
+            "testStatus": "failed",
+        },
     )
-    searched = client.get("/api/v1/captures", params={"q": "App.tsx", "sort": "relevance"})
+    searched = client.get(
+        "/api/v1/captures", params={"q": "App.tsx", "sort": "relevance"}
+    )
     first = client.get("/api/v1/captures", params={"limit": 1})
-    second = client.get("/api/v1/captures", params={"limit": 1, "cursor": first.json()["nextCursor"]})
+    second = client.get(
+        "/api/v1/captures", params={"limit": 1, "cursor": first.json()["nextCursor"]}
+    )
 
     assert [item["captureId"] for item in failed.json()["items"]] == ["cap_failed"]
     assert searched.json()["items"][0]["match"]["field"] == "파일"
     assert first.json()["hasMore"] is True
-    assert first.json()["items"][0]["captureId"] != second.json()["items"][0]["captureId"]
+    assert (
+        first.json()["items"][0]["captureId"] != second.json()["items"][0]["captureId"]
+    )
 
 
 def test_session_detail_children_diff_and_file_history(tmp_path: Path) -> None:
@@ -181,10 +210,35 @@ def test_capture_graph_uses_collected_files_tests_and_depth(tmp_path: Path) -> N
     ).json()
 
     assert {node["type"] for node in graph["nodes"]} >= {
-        "DEVELOPMENT_SESSION", "PROJECT", "FILE", "COMMAND", "TEST_RESULT"
+        "DEVELOPMENT_SESSION",
+        "PROJECT",
+        "TASK",
+        "FILE",
+        "COMMAND",
+        "TEST_RESULT",
     }
     assert {edge["type"] for edge in graph["edges"]} >= {
-        "belongs_to_project", "changed_file", "executed_command", "tested_by"
+        "belongs_to_project",
+        "contains_task",
+        "changed_file",
+        "executed_command",
+        "tested_by",
+    }
+
+    task_graph = client.get(
+        "/api/v1/graph/neighborhood/task:cap_graph:session",
+        params={"depth": 1},
+    ).json()
+    assert {edge["type"] for edge in task_graph["edges"]} >= {
+        "contains_task",
+        "modifies",
+        "executes",
+        "runs",
+    }
+    assert {edge["type"] for edge in graph["edges"]} >= {
+        "changed_file",
+        "executed_command",
+        "tested_by",
     }
 
     compact = client.get(
@@ -195,8 +249,7 @@ def test_capture_graph_uses_collected_files_tests_and_depth(tmp_path: Path) -> N
     ).json()
     node_ids = {node["id"] for node in compact["nodes"]}
     assert all(
-        edge["from"] in node_ids and edge["to"] in node_ids
-        for edge in compact["edges"]
+        edge["from"] in node_ids and edge["to"] in node_ids for edge in compact["edges"]
     )
 
 
@@ -209,3 +262,63 @@ def test_document_backlinks_keep_capture_relation_type(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert response.json()["items"][0]["captureId"] == "cap_backlink"
     assert response.json()["items"][0]["relationType"] == "parent_of"
+
+
+def test_populated_session_tabs_reference_task_and_task_links_back(
+    tmp_path: Path,
+) -> None:
+    client = api(tmp_path)
+    client.post("/api/v1/captures", json=envelope("cap_task_links"))
+
+    detail = client.get("/api/v1/captures/cap_task_links").json()
+    task = detail["tasks"][0]
+    collections = {
+        name: client.get(f"/api/v1/captures/cap_task_links/{path}").json()
+        for name, path in {
+            "messages": "messages",
+            "changedFiles": "changed-files",
+            "commands": "commands",
+            "tests": "tests",
+        }.items()
+    }
+    task_detail = client.get(f"/api/v1/tasks/{task['taskId']}").json()
+
+    assert task["boundaryStatus"] == "suggested"
+    assert task["provenance"]["derivedBy"] == "rule"
+    assert all(
+        values["items"][0]["taskId"] == task["taskId"]
+        for values in collections.values()
+    )
+    assert task_detail["capture"]["captureId"] == "cap_task_links"
+    assert set(task_detail["navigation"]) == {
+        "overview",
+        "messages",
+        "changedFiles",
+        "commands",
+        "tests",
+        "graph",
+    }
+
+
+def test_empty_session_returns_explicit_zero_counts_without_task(
+    tmp_path: Path,
+) -> None:
+    client = api(tmp_path)
+    client.post("/api/v1/captures", json=empty_envelope("cap_empty"))
+
+    detail = client.get("/api/v1/captures/cap_empty").json()
+    assert detail["messagesSummary"]["count"] == 0
+    assert detail["changedFilesSummary"]["count"] == 0
+    assert detail["commandsSummary"]["count"] == 0
+    assert detail["testsSummary"] == {"count": 0, "status": "none"}
+    assert detail["tasks"] == []
+    for path in ("messages", "changed-files", "commands", "tests"):
+        response = client.get(f"/api/v1/captures/cap_empty/{path}").json()
+        assert response["items"] == []
+        assert response["total"] == 0
+
+    graph = client.get(
+        "/api/v1/graph/neighborhood/cap_empty", params={"depth": 1}
+    ).json()
+    assert all(node["type"] != "TASK" for node in graph["nodes"])
+    assert all(edge["type"] != "contains_task" for edge in graph["edges"])

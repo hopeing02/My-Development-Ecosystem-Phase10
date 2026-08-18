@@ -152,6 +152,15 @@ pre { max-height: 42vh; overflow: auto; padding: 12px; white-space: pre-wrap; wo
 .session-tabs { display: flex; gap: 4px; margin: 14px -4px; padding: 4px; overflow-x: auto; border-bottom: 1px solid #dce2ef; }
 .session-tabs button { flex: 0 0 auto; min-height: 40px; padding: 7px 10px; border: 0; border-radius: 5px 5px 0 0; color: #66718c; background: transparent; }
 .session-tabs button.active { color: white; background: #263d75; }
+.task-empty { margin: 8px 0; padding: 10px; border-radius: 7px; color: #77829d; background: #f5f7fb; font-size: 12px; }
+.task-navigation { display: grid; gap: 6px; margin: 10px 0; padding: 10px; border: 1px solid #e2d39e; border-radius: 8px; background: #fffaf0; }
+.task-navigation h3 { margin: 0 0 2px; }
+.task-navigation button { display: grid; gap: 3px; padding: 9px; text-align: left; border: 1px solid #e2d39e; border-radius: 6px; color: #34415f; background: white; }
+.task-navigation small { color: #77829d; }
+.task-detail { padding: 12px; border: 1px solid #e2d39e; border-radius: 9px; background: #fffaf0; }
+.task-detail h3 { margin: 10px 0 6px; }
+.task-links { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.task-links button { min-height: 40px; padding: 8px; border: 1px solid #ccd5e7; border-radius: 6px; color: #34415f; background: white; }
 .tab-error { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; color: #8d1c1c; background: #ffe4e4; }
 .tab-error button { padding: 7px 10px; border: 1px solid #e0a5a5; border-radius: 5px; background: white; }
 .record-list { display: grid; gap: 8px; }
