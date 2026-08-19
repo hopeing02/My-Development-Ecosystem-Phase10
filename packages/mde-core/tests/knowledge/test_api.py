@@ -56,6 +56,68 @@ def test_viewer_proxies_only_loopback_capture_queries(
     }
 
 
+def test_viewer_proxies_chatgpt_queries_and_imports_to_autoknowledge(
+    monkeypatch, knowledge_service: KnowledgeService
+) -> None:
+    class Headers:
+        @staticmethod
+        def get_content_type() -> str:
+            return "application/json"
+
+    class Response:
+        status = 200
+        headers = Headers()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        @staticmethod
+        def read() -> bytes:
+            return b'{"items":[],"hasMore":false,"total":0}'
+
+    captured: list[dict[str, object]] = []
+
+    def fake_urlopen(request, timeout):
+        captured.append(
+            {
+                "url": request.full_url,
+                "method": request.method,
+                "timeout": timeout,
+                "authorization": request.headers.get("Authorization"),
+                "body": request.data,
+            }
+        )
+        return Response()
+
+    monkeypatch.setattr("mde.knowledge.api.urlopen", fake_urlopen)
+    client = TestClient(create_app(knowledge_service))
+
+    listed = client.get("/api/v1/chatgpt/sessions", params={"limit": 10})
+    imported = client.post(
+        "/api/v1/chatgpt/shared-imports",
+        headers={"Authorization": "Bearer local-secret"},
+        json={"url": "https://chatgpt.com/share/session-1"},
+    )
+
+    assert listed.status_code == 200
+    assert imported.status_code == 200
+    assert captured[0] == {
+        "url": "http://127.0.0.1:8000/api/v1/chatgpt/sessions?limit=10",
+        "method": "GET",
+        "timeout": 10,
+        "authorization": None,
+        "body": None,
+    }
+    assert captured[1]["url"] == ("http://127.0.0.1:8000/api/v1/chatgpt/shared-imports")
+    assert captured[1]["method"] == "POST"
+    assert captured[1]["timeout"] == 120
+    assert captured[1]["authorization"] == "Bearer local-secret"
+    assert b"chatgpt.com/share/session-1" in captured[1]["body"]
+
+
 def test_graph_api_is_source_scoped_read_only_and_hides_paths(
     tmp_path: Path, knowledge_service: KnowledgeService
 ) -> None:
@@ -182,8 +244,10 @@ def test_graph_api_serves_built_viewer_assets(
 
     assert client.get("/").text.startswith('<div id="root">viewer</div>')
     assert client.get("/assets/app.js").text == "console.log('viewer')"
-    assert client.get("/manifest.webmanifest").headers["content-type"].startswith(
-        "application/manifest+json"
+    assert (
+        client.get("/manifest.webmanifest")
+        .headers["content-type"]
+        .startswith("application/manifest+json")
     )
     service_worker = client.get("/sw.js")
     assert service_worker.text == "self.skipWaiting()"
@@ -214,9 +278,7 @@ def test_android_apk_download_serves_only_configured_file(
     assert response.status_code == 200
     assert response.content == b"safe-apk"
     assert response.headers["content-type"] == "application/vnd.android.package-archive"
-    assert "mde-knowledge-viewer-v0.1.0.apk" in response.headers[
-        "content-disposition"
-    ]
+    assert "mde-knowledge-viewer-v0.1.0.apk" in response.headers["content-disposition"]
     assert response.headers["cache-control"] == "no-store"
 
 

@@ -88,7 +88,8 @@ test("opens the ChatGPT export importer without replacing document navigation", 
   render(<App />);
 
   fireEvent.click(screen.getByRole("button", { name: "ChatGPT" }));
-  expect(screen.getByRole("heading", { name: "ChatGPT 실제 세션 가져오기" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "ChatGPT 세션" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "가져오기" })).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button", { name: "문서" }));
   expect(await screen.findByRole("heading", { name: "Source" })).toBeInTheDocument();

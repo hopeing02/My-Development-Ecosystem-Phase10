@@ -13,6 +13,33 @@ h1 { margin: 2px 0 0; font-size: 24px; }
 .primary-navigation button.active { color: white; background: #315fce; }
 .install-app { padding: 8px 12px; border: 1px solid #6389e8; border-radius: 20px; color: white; background: #315fce; }
 .stats { padding: 8px 12px; border: 1px solid #344467; border-radius: 20px; color: #bdc9e7; font-size: 13px; }
+.chatgpt-workspace { min-height: calc(100vh - 86px); padding: 24px; background: #eef2f9; }
+.chatgpt-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 1180px; margin: 0 auto 18px; }
+.chatgpt-heading h2 { margin: 5px 0 0; color: #17213d; font-size: 24px; text-transform: none; letter-spacing: 0; }
+.chatgpt-mode { display: flex; gap: 4px; padding: 4px; border: 1px solid #ccd5e7; border-radius: 8px; background: white; }
+.chatgpt-mode button { min-height: 40px; padding: 8px 14px; border: 0; border-radius: 5px; color: #56617d; background: transparent; }
+.chatgpt-mode button.active { color: white; background: #315fce; }
+.chatgpt-session-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); min-height: calc(100vh - 170px); max-width: 1180px; margin: 0 auto; overflow: hidden; border: 1px solid #dce2ef; border-radius: 12px; background: white; box-shadow: 0 10px 35px rgba(24, 42, 83, .08); }
+.chatgpt-session-sidebar { padding: 18px; overflow: auto; border-right: 1px solid #dce2ef; }
+.chatgpt-session-sidebar form > button, .chatgpt-session-sidebar > button { width: 100%; min-height: 40px; padding: 8px; border: 1px solid #ccd5e7; border-radius: 6px; color: #34415f; background: white; }
+.chatgpt-session-sidebar > button.active { color: white; background: #263d75; }
+.chatgpt-session-sidebar h3 { margin: 20px 0 9px; font-size: 14px; }
+.chatgpt-session-list { display: grid; gap: 8px; }
+.chatgpt-session-list button { display: grid; gap: 5px; padding: 12px; text-align: left; border: 1px solid #dce2ef; border-radius: 8px; background: #f8faff; }
+.chatgpt-session-list button.active { border-color: #10a37f; background: #eaf8f4; }
+.chatgpt-session-list small { color: #77829d; font-size: 11px; }
+.chatgpt-session-main { min-width: 0; padding: 22px; overflow: auto; }
+.chatgpt-session-main .capture-graph-shell { height: calc(100vh - 220px); min-height: 520px; }
+.chatgpt-session-detail > h3 { margin: 10px 0 16px; font-size: 23px; }
+.chatgpt-session-detail > dl { grid-template-columns: 110px 1fr; }
+.chatgpt-session-detail > h4 { margin: 22px 0 10px; }
+.chatgpt-message-list { display: grid; gap: 10px; }
+.chatgpt-message { padding: 12px; border: 1px solid #dce2ef; border-radius: 9px; background: #fafbfe; }
+.chatgpt-message.role-user { border-left: 4px solid #315fce; }
+.chatgpt-message.role-assistant { border-left: 4px solid #10a37f; }
+.chatgpt-message > header { height: auto; min-height: 0; padding: 0; color: #34415f; background: transparent; }
+.chatgpt-message > header span { color: #77829d; font-size: 11px; }
+.chatgpt-message pre { max-height: none; margin-bottom: 0; }
 .chatgpt-import-workspace { min-height: calc(100vh - 86px); padding: 42px 24px; background: #eef2f9; }
 .chatgpt-import-panel { width: min(680px, 100%); margin: 0 auto; padding: 30px; border: 1px solid #dce2ef; border-radius: 14px; background: white; box-shadow: 0 10px 35px rgba(24, 42, 83, .08); }
 .chatgpt-import-panel h2 { margin: 8px 0 12px; color: #17213d; font-size: 24px; text-transform: none; letter-spacing: 0; }
@@ -212,6 +239,10 @@ pre { max-height: 42vh; overflow: auto; padding: 12px; white-space: pre-wrap; wo
   .capture-card { min-height: 128px; }
   .capture-graph-shell { height: 62vh; min-height: 420px; }
   .session-tabs button { min-height: 44px; }
+  .chatgpt-workspace { padding: 16px; }
+  .chatgpt-session-layout { display: flex; flex-direction: column; }
+  .chatgpt-session-sidebar { overflow: visible; border-right: 0; border-bottom: 1px solid #dce2ef; }
+  .chatgpt-session-main { overflow: visible; }
 }
 @media (max-width: 560px) {
   .primary-navigation { order: 3; width: 100%; }
@@ -221,4 +252,7 @@ pre { max-height: 42vh; overflow: auto; padding: 12px; white-space: pre-wrap; wo
   .date-filters { grid-template-columns: 1fr; }
   .capture-graph-controls { align-items: stretch; }
   .capture-graph-controls label { width: 100%; min-height: 44px; }
+  .chatgpt-heading { align-items: stretch; flex-direction: column; }
+  .chatgpt-mode button { flex: 1; }
+  .chatgpt-session-main, .chatgpt-session-sidebar { padding: 14px; }
 }

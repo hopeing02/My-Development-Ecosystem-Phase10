@@ -81,7 +81,7 @@ export interface Page<T> {
 
 export interface CaptureGraphNode {
   id: string;
-  type: "DOCUMENT" | "PROJECT" | "CLIPBOARD_CAPTURE" | "DEVELOPMENT_SESSION" | "TASK" | "FILE" | "COMMAND" | "TEST_RESULT";
+  type: "DOCUMENT" | "PROJECT" | "CLIPBOARD_CAPTURE" | "DEVELOPMENT_SESSION" | "TASK" | "FILE" | "COMMAND" | "TEST_RESULT" | "CHATGPT_SESSION" | "CHATGPT_MESSAGE";
   label: string;
   metadata: Record<string, unknown>;
 }

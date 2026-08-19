@@ -1,4 +1,11 @@
-import type { ChatGPTImportResult } from "./types";
+import type { CaptureGraphData } from "../captures/types";
+import type {
+  ChatGPTImportResult,
+  ChatGPTMessage,
+  ChatGPTPage,
+  ChatGPTSessionDetail,
+  ChatGPTSessionSummary,
+} from "./types";
 
 export class ChatGPTImportApiError extends Error {
   constructor(public code: string, message: string) {
@@ -48,6 +55,37 @@ export async function importChatGPTSharedLink(
   });
 }
 
+export function listChatGPTSessions(
+  query = "",
+  cursor?: string,
+): Promise<ChatGPTPage<ChatGPTSessionSummary>> {
+  const parameters = new URLSearchParams({ limit: "30" });
+  if (query.trim()) parameters.set("q", query.trim());
+  if (cursor) parameters.set("cursor", cursor);
+  return requestQuery(`/api/v1/chatgpt/sessions?${parameters}`);
+}
+
+export function getChatGPTSession(sessionId: string): Promise<ChatGPTSessionDetail> {
+  return requestQuery(`/api/v1/chatgpt/sessions/${encodeURIComponent(sessionId)}`);
+}
+
+export function getChatGPTMessages(
+  sessionId: string,
+  cursor?: string,
+): Promise<ChatGPTPage<ChatGPTMessage>> {
+  const parameters = new URLSearchParams({ limit: "100" });
+  if (cursor) parameters.set("cursor", cursor);
+  return requestQuery(
+    `/api/v1/chatgpt/sessions/${encodeURIComponent(sessionId)}/messages?${parameters}`,
+  );
+}
+
+export function getChatGPTGraph(sessionId?: string): Promise<CaptureGraphData> {
+  const parameters = new URLSearchParams({ limit: "300" });
+  if (sessionId) parameters.set("sessionId", sessionId);
+  return requestQuery(`/api/v1/chatgpt/graph?${parameters}`);
+}
+
 async function requestImport(init: RequestInit): Promise<ChatGPTImportResult> {
   const response = await fetch("/api/v1/chatgpt/shared-imports", {
     method: "POST",
@@ -79,6 +117,16 @@ function readError(payload: unknown): { code: string; message: string } {
         ? source.message
         : "ChatGPT export를 가져오지 못했습니다.",
   };
+}
+
+async function requestQuery<T>(path: string): Promise<T> {
+  const response = await fetch(path, { headers: { Accept: "application/json" } });
+  const payload = (await response.json().catch(() => null)) as unknown;
+  if (!response.ok) {
+    const error = readError(payload);
+    throw new ChatGPTImportApiError(error.code, error.message);
+  }
+  return payload as T;
 }
 
 function isImportResult(payload: unknown): payload is ChatGPTImportResult {

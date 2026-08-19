@@ -63,7 +63,10 @@ def create_app(
             request.url.path.startswith("/api/v1/captures/")
             and request.method == "PATCH"
         )
-        if mutating_knowledge or mutating_capture:
+        mutating_chatgpt = (
+            request.url.path.startswith("/api/v1/chatgpt/") and request.method == "POST"
+        )
+        if mutating_knowledge or mutating_capture or mutating_chatgpt:
             host = (request.url.hostname or "").casefold()
             if not _allowed_command_host(host):
                 return _error(403, "INVALID_HOST", "Knowledge commands require a local or private-network host.")
@@ -71,11 +74,33 @@ def create_app(
             origin_host = (urlparse(origin).hostname or "").casefold() if origin else ""
             if origin and origin_host != host:
                 return _error(403, "INVALID_ORIGIN", "Knowledge command origin is not allowed.")
-            if request.method in {"PATCH", "POST"} and request.headers.get("content-type", "").split(";", 1)[0].strip().casefold() != "application/json":
-                return _error(415, "INVALID_CONTENT_TYPE", "Knowledge commands require JSON.")
+            content_type = (
+                request.headers.get("content-type", "")
+                .split(";", 1)[0]
+                .strip()
+                .casefold()
+            )
+            allowed_content_types = (
+                {"application/json", "application/zip", "application/octet-stream"}
+                if mutating_chatgpt
+                else {"application/json"}
+            )
+            if (
+                request.method in {"PATCH", "POST"}
+                and content_type not in allowed_content_types
+            ):
+                return _error(
+                    415, "INVALID_CONTENT_TYPE", "Knowledge commands require JSON."
+                )
             content_length = request.headers.get("content-length")
-            if content_length and int(content_length) > 2 * 1024 * 1024 + 65536:
-                return _error(413, "DOCUMENT_TOO_LARGE", "Knowledge command body is too large.")
+            if (
+                not mutating_chatgpt
+                and content_length
+                and int(content_length) > 2 * 1024 * 1024 + 65536
+            ):
+                return _error(
+                    413, "DOCUMENT_TOO_LARGE", "Knowledge command body is too large."
+                )
         response = await call_next(request)
         if request.url.path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
@@ -387,6 +412,14 @@ def create_app(
             request, f"/api/v1/documents/{document_id}/capture-backlinks"
         )
 
+    @application.api_route(
+        "/api/v1/chatgpt/{chatgpt_path:path}",
+        methods=["GET", "POST"],
+        response_model=None,
+    )
+    async def chatgpt_gateway(request: Request, chatgpt_path: str) -> Response:
+        return await _proxy_capture_request(request, f"/api/v1/chatgpt/{chatgpt_path}")
+
     application.include_router(command_router(commands, _success))
     return application
 
@@ -564,6 +597,9 @@ async def _proxy_capture_request(request: Request, path: str) -> Response:
         headers["Content-Type"] = request.headers["content-type"]
     if request.headers.get("authorization"):
         headers["Authorization"] = request.headers["authorization"]
+    if request.headers.get("x-file-name"):
+        headers["X-File-Name"] = request.headers["x-file-name"]
+    timeout_seconds = 120 if request.method == "POST" else 10
 
     def send() -> tuple[int, bytes, str]:
         outgoing = UrlRequest(
@@ -573,7 +609,7 @@ async def _proxy_capture_request(request: Request, path: str) -> Response:
             method=request.method,
         )
         try:
-            with urlopen(outgoing, timeout=10) as response:
+            with urlopen(outgoing, timeout=timeout_seconds) as response:
                 return (
                     response.status,
                     response.read(),

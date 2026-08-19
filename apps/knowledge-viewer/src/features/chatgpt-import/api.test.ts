@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { importChatGPTExport, importChatGPTSharedLink } from "./api";
+import {
+  getChatGPTMessages,
+  getChatGPTSession,
+  importChatGPTExport,
+  importChatGPTSharedLink,
+  listChatGPTSessions,
+} from "./api";
 
 describe("ChatGPT import API", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -86,6 +92,34 @@ describe("ChatGPT import API", () => {
         headers: expect.objectContaining({ Authorization: "Bearer secret" }),
         body: JSON.stringify({ url: "https://chatgpt.com/share/conversation-1" }),
       }),
+    );
+  });
+
+  it("reads stored sessions and messages without a control key", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], hasMore: false, total: 0 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ session: { sessionId: "session-1" }, warnings: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], hasMore: false, total: 0 }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await listChatGPTSessions("design");
+    await getChatGPTSession("session-1");
+    await getChatGPTMessages("session-1");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/chatgpt/sessions?limit=30&q=design",
+      { headers: { Accept: "application/json" } },
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/chatgpt/sessions/session-1",
+      { headers: { Accept: "application/json" } },
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "/api/v1/chatgpt/sessions/session-1/messages?limit=100",
+      { headers: { Accept: "application/json" } },
     );
   });
 });

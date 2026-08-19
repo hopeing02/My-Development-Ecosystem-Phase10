@@ -202,6 +202,32 @@ class ChatGPTProjectionStore:
                 "ChatGPT projection revision is missing or invalid",
             ) from error
 
+    def latest(self, session_id: str) -> ChatGPTProjectionRevision:
+        """Return the latest trusted revision for one exact session id."""
+
+        revisions = self._revisions(self.sessions_dir / self._session_key(session_id))
+        if not revisions or revisions[-1][1].session_id != session_id:
+            raise ChatGPTImportError(
+                "CHATGPT_PROJECTION_NOT_FOUND",
+                "ChatGPT session projection was not found",
+            )
+        return revisions[-1][1]
+
+    def latest_revisions(self) -> tuple[ChatGPTProjectionRevision, ...]:
+        """Return one latest trusted revision per persisted session."""
+
+        if not self.sessions_dir.exists():
+            return ()
+        values: list[ChatGPTProjectionRevision] = []
+        for session_dir in sorted(self.sessions_dir.glob("session_*")):
+            if not session_dir.is_dir():
+                continue
+            revisions = self._revisions(session_dir)
+            if revisions:
+                values.append(revisions[-1][1])
+        values.sort(key=lambda item: item.projected_at, reverse=True)
+        return tuple(values)
+
     def _revisions(
         self, session_dir: Path
     ) -> list[tuple[Path, ChatGPTProjectionRevision]]:

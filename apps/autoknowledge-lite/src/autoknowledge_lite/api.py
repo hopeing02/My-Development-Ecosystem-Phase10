@@ -38,6 +38,10 @@ from autoknowledge_lite.chatgpt_shared_import import ChatGPTSharedImportService
 from autoknowledge_lite.chatgpt_shared_import_api import (
     install_chatgpt_shared_import_api,
 )
+from autoknowledge_lite.chatgpt_query import (
+    ChatGPTQueryService,
+    install_chatgpt_query_api,
+)
 from autoknowledge_lite.content import (
     ContentFetcher,
     ContentFetchError,
@@ -155,6 +159,7 @@ def create_app(
         application,
         chatgpt_shared_import_service or ChatGPTSharedImportService(share_store.root),
     )
+    install_chatgpt_query_api(application, ChatGPTQueryService(share_store.root))
 
     @application.get("/v1/status", response_model=StatusResponse)
     async def get_status() -> StatusResponse:
