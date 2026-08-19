@@ -29,7 +29,7 @@ from autoknowledge_lite.chatgpt_session_source import (
 )
 
 PROJECTION_SCHEMA_VERSION = "1.0"
-CHATGPT_ADAPTER_VERSION = "1.0.0"
+CHATGPT_ADAPTER_VERSION = "1.1.0"
 
 
 class ChatGPTImportError(RuntimeError):

@@ -10,6 +10,7 @@ from autoknowledge_lite.chatgpt_knowledge_adapter import (
     ChatGPTKnowledgeAdapterError,
 )
 from autoknowledge_lite.knowledge_model import (
+    ActivityType,
     DataSource,
     DerivationMethod,
     MessageRole,
@@ -97,6 +98,26 @@ def test_projects_normal_chatgpt_export_to_common_session_and_messages() -> None
         for message in projection.messages
     )
     assert projection.warnings == ()
+
+
+def test_projects_derived_tasks_without_changing_original_messages() -> None:
+    source = chatgpt_export()
+    original = deepcopy(source)
+
+    projection = ChatGPTKnowledgeAdapter().project(source)
+
+    assert len(projection.tasks) == 1
+    assert projection.session.task_ids == (projection.tasks[0].task_id,)
+    assert projection.tasks[0].provenance.source == DataSource.DERIVED
+    assert [activity.activity_type for activity in projection.activities] == [
+        ActivityType.REQUEST,
+        ActivityType.RESPONSE,
+    ]
+    assert all(
+        message.provenance.source == DataSource.ORIGINAL
+        for message in projection.messages
+    )
+    assert source == original
 
 
 def test_projects_existing_chatgpt_clip_without_changing_its_format() -> None:

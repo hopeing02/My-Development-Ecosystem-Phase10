@@ -104,9 +104,82 @@ def test_returns_session_detail_and_paginated_original_messages(tmp_path: Path) 
 
     assert detail.status_code == 200
     assert detail.json()["session"]["provenance"]["source"] == "original"
+    assert len(detail.json()["session"]["taskIds"]) == 1
     assert first.json()["items"][0]["content"] == "Show this session"
     assert first.json()["items"][0]["provenance"]["source"] == "original"
     assert second.json()["items"][0]["content"] == "Session is visible"
+
+
+def test_lists_derived_tasks_and_returns_activity_flow(tmp_path: Path) -> None:
+    client = api(tmp_path)
+
+    listing = client.get("/api/v1/chatgpt/tasks", params={"sessionId": "session-1"})
+    task_id = listing.json()["items"][0]["taskId"]
+    detail = client.get(f"/api/v1/chatgpt/tasks/{task_id}")
+
+    assert listing.status_code == 200
+    assert listing.json()["total"] == 1
+    assert listing.json()["items"][0]["provenance"] == {
+        "source": "derived",
+        "derivedBy": "rule",
+        "confidence": 1.0,
+        "sourceRefs": [
+            "session:session-1",
+            "message:message-1",
+            "message:message-2",
+        ],
+    }
+    assert detail.status_code == 200
+    assert [item["activityType"] for item in detail.json()["activities"]] == [
+        "request",
+        "response",
+    ]
+    assert all(
+        item["provenance"]["source"] == "derived"
+        for item in detail.json()["activities"]
+    )
+
+
+def test_reanalyzes_legacy_projection_without_rewriting_revision(
+    tmp_path: Path,
+) -> None:
+    store = ChatGPTProjectionStore(
+        tmp_path,
+        clock=lambda: datetime(2026, 8, 19, tzinfo=UTC),
+    )
+    write = store.save(
+        projection(),
+        import_id="legacy-test",
+        session_ref=ChatGPTSessionReference(
+            source_session_id="session-1",
+            title="Viewer shared design",
+            source_member="conversations.json",
+            source_index=0,
+            source_format="chatgpt_data_export",
+        ),
+        source_content_hash="b" * 64,
+    )
+    legacy = write.record.model_copy(
+        update={
+            "adapter_version": "1.0.0",
+            "projection": write.record.projection.model_copy(
+                update={"tasks": (), "activities": ()}
+            ),
+        }
+    )
+    original_revision = write.revision_path.read_bytes()
+
+    class LegacyStore:
+        def latest(self, _session_id: str):
+            return legacy
+
+        def latest_revisions(self):
+            return (legacy,)
+
+    service = ChatGPTQueryService(tmp_path, projection_store=LegacyStore())
+
+    assert service.list_tasks(session_id="session-1")["total"] == 1
+    assert write.revision_path.read_bytes() == original_revision
 
 
 def test_returns_session_message_knowledge_graph(tmp_path: Path) -> None:
@@ -130,8 +203,11 @@ def test_missing_session_and_invalid_cursor_are_safe_errors(tmp_path: Path) -> N
 
     missing = client.get("/api/v1/chatgpt/sessions/missing")
     invalid = client.get("/api/v1/chatgpt/sessions", params={"cursor": "%%%"})
+    missing_task = client.get("/api/v1/chatgpt/tasks/missing")
 
     assert missing.status_code == 404
     assert missing.json()["error"]["code"] == "CHATGPT_PROJECTION_NOT_FOUND"
     assert invalid.status_code == 400
     assert invalid.json()["error"]["code"] == "CHATGPT_CURSOR_INVALID"
+    assert missing_task.status_code == 404
+    assert missing_task.json()["error"]["code"] == "CHATGPT_TASK_NOT_FOUND"

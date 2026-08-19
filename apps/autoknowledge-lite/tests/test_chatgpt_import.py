@@ -93,7 +93,7 @@ def test_archives_and_projects_valid_sessions_while_isolating_invalid_session(
     revision = result.revisions[0].record
     assert revision.session_id == "valid"
     assert revision.revision == 1
-    assert revision.adapter_version == "1.0.0"
+    assert revision.adapter_version == "1.1.0"
     assert revision.projection.messages[0].role == MessageRole.USER
     assert revision.projection.messages[0].content == " 원본 질문 "
     assert result.raw_archive_path.read_bytes() == original_zip

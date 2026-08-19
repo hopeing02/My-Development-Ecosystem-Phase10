@@ -17,6 +17,7 @@ from autoknowledge_lite.capture_api import (
     server_content_hash,
 )
 from autoknowledge_lite.knowledge_model import (
+    Activity,
     DataSource,
     DerivationMethod,
     KnowledgeModel,
@@ -25,6 +26,11 @@ from autoknowledge_lite.knowledge_model import (
     Provenance,
     Session,
     SessionSource,
+    Task,
+)
+from autoknowledge_lite.task_analyzer import (
+    SessionTaskAnalyzer,
+    TaskBoundaryCandidate,
 )
 
 
@@ -33,6 +39,10 @@ class ChatGPTKnowledgeProjection(KnowledgeModel):
 
     session: Session
     messages: tuple[Message, ...]
+    tasks: tuple[Task, ...] = ()
+    activities: tuple[Activity, ...] = ()
+    boundary_candidates: tuple[TaskBoundaryCandidate, ...] = ()
+    analysis_warnings: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
 
 
@@ -51,6 +61,9 @@ class ChatGPTKnowledgeAdapter:
         "tool": MessageRole.TOOL,
         "system": MessageRole.SYSTEM,
     }
+
+    def __init__(self, *, task_analyzer: SessionTaskAnalyzer | None = None) -> None:
+        self.task_analyzer = task_analyzer or SessionTaskAnalyzer()
 
     def project(
         self, source: CaptureEnvelope | Mapping[str, Any]
@@ -180,9 +193,17 @@ class ChatGPTKnowledgeAdapter:
             message_ids=tuple(message.message_id for message in messages),
             provenance=self._original_provenance(session_ref),
         )
+        analysis = self.task_analyzer.analyze(session, messages)
+        session = session.model_copy(
+            update={"task_ids": tuple(task.task_id for task in analysis.tasks)}
+        )
         return ChatGPTKnowledgeProjection(
             session=session,
             messages=messages,
+            tasks=analysis.tasks,
+            activities=analysis.activities,
+            boundary_candidates=analysis.boundary_candidates,
+            analysis_warnings=analysis.warnings,
             warnings=tuple(sorted(set(warnings))),
         )
 

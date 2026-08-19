@@ -14,7 +14,12 @@ from autoknowledge_lite.chatgpt_import import (
     ChatGPTProjectionRevision,
     ChatGPTProjectionStore,
 )
-from autoknowledge_lite.knowledge_model import Message, Provenance
+from autoknowledge_lite.knowledge_model import Activity, Message, Provenance, Task
+from autoknowledge_lite.task_analyzer import (
+    SessionTaskAnalyzer,
+    TaskAnalysis,
+    TaskBoundaryCandidate,
+)
 
 DEFAULT_PAGE_SIZE = 30
 MAX_PAGE_SIZE = 100
@@ -36,8 +41,10 @@ class ChatGPTQueryService:
         data_dir: Path,
         *,
         projection_store: ChatGPTProjectionStore | None = None,
+        task_analyzer: SessionTaskAnalyzer | None = None,
     ) -> None:
         self.projection_store = projection_store or ChatGPTProjectionStore(data_dir)
+        self.task_analyzer = task_analyzer or SessionTaskAnalyzer()
 
     def list_sessions(
         self,
@@ -73,15 +80,70 @@ class ChatGPTQueryService:
     def detail(self, session_id: str) -> dict[str, Any]:
         revision = self._latest(session_id)
         session = revision.projection.session
+        analysis = self._analysis(revision)
         return {
             "session": self._summary(revision)
             | {
                 "sourceSessionId": session.source_session_id,
-                "taskIds": list(session.task_ids),
+                "taskIds": [task.task_id for task in analysis.tasks],
                 "provenance": _provenance(session.provenance),
             },
             "warnings": list(revision.projection.warnings),
+            "analysisWarnings": list(analysis.warnings),
+            "boundaryCandidates": [
+                _boundary_candidate(item) for item in analysis.boundary_candidates
+            ],
         }
+
+    def list_tasks(
+        self,
+        *,
+        session_id: str | None = None,
+        cursor: str | None = None,
+        limit: int = DEFAULT_PAGE_SIZE,
+    ) -> dict[str, Any]:
+        revisions = (
+            (self._latest(session_id),)
+            if session_id is not None
+            else self._latest_revisions()
+        )
+        values = [
+            task for revision in revisions for task in self._analysis(revision).tasks
+        ]
+        offset = _decode_cursor(cursor)
+        page = values[offset : offset + limit]
+        next_offset = offset + len(page)
+        return {
+            "items": [_task(item) for item in page],
+            "nextCursor": (
+                _encode_cursor(next_offset) if next_offset < len(values) else None
+            ),
+            "hasMore": next_offset < len(values),
+            "total": len(values),
+        }
+
+    def task_detail(self, task_id: str) -> dict[str, Any]:
+        for revision in self._latest_revisions():
+            analysis = self._analysis(revision)
+            for task in analysis.tasks:
+                if task.task_id != task_id:
+                    continue
+                return {
+                    "task": _task(task),
+                    "activities": [
+                        _activity(item)
+                        for item in analysis.activities
+                        if item.task_id == task_id
+                    ],
+                    "boundaryCandidates": [
+                        _boundary_candidate(item)
+                        for item in analysis.boundary_candidates
+                    ],
+                    "analysisWarnings": list(analysis.warnings),
+                }
+        raise ChatGPTQueryError(
+            "CHATGPT_TASK_NOT_FOUND", "ChatGPT Task was not found", status_code=404
+        )
 
     def messages(
         self,
@@ -187,6 +249,20 @@ class ChatGPTQueryService:
         except ChatGPTImportError as error:
             raise ChatGPTQueryError(error.code, str(error), status_code=500) from error
 
+    def _analysis(self, revision: ChatGPTProjectionRevision) -> TaskAnalysis:
+        projection = revision.projection
+        if revision.adapter_version != "1.0.0":
+            return TaskAnalysis(
+                tasks=projection.tasks,
+                activities=projection.activities,
+                boundary_candidates=projection.boundary_candidates,
+                warnings=projection.analysis_warnings,
+            )
+        return self.task_analyzer.analyze(
+            projection.session,
+            projection.messages,
+        )
+
     @staticmethod
     def _summary(revision: ChatGPTProjectionRevision) -> dict[str, Any]:
         session = revision.projection.session
@@ -243,6 +319,28 @@ def install_chatgpt_query_api(
         except ChatGPTQueryError as error:
             return failure(error)
 
+    @application.get("/api/v1/chatgpt/tasks", response_model=None)
+    def tasks(
+        session_id: str | None = Query(None, alias="sessionId"),
+        cursor: str | None = None,
+        limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+    ) -> dict[str, Any] | JSONResponse:
+        try:
+            return service.list_tasks(
+                session_id=session_id,
+                cursor=cursor,
+                limit=limit,
+            )
+        except ChatGPTQueryError as error:
+            return failure(error)
+
+    @application.get("/api/v1/chatgpt/tasks/{task_id}", response_model=None)
+    def task_detail(task_id: str) -> dict[str, Any] | JSONResponse:
+        try:
+            return service.task_detail(task_id)
+        except ChatGPTQueryError as error:
+            return failure(error)
+
     @application.get("/api/v1/chatgpt/graph", response_model=None)
     def graph(
         session_id: str | None = Query(None, alias="sessionId"),
@@ -263,6 +361,47 @@ def _message(value: Message) -> dict[str, Any]:
         "timestamp": value.timestamp.isoformat() if value.timestamp else None,
         "sequence": value.sequence,
         "sourceMessageId": value.source_message_id,
+        "provenance": _provenance(value.provenance),
+    }
+
+
+def _task(value: Task) -> dict[str, Any]:
+    return {
+        "taskId": value.task_id,
+        "sessionId": value.session_id,
+        "title": value.title,
+        "summary": value.summary,
+        "status": value.status.value,
+        "boundaryStatus": value.boundary_status.value,
+        "startedAt": value.started_at.isoformat() if value.started_at else None,
+        "completedAt": value.completed_at.isoformat() if value.completed_at else None,
+        "messageRange": {
+            "startSequence": value.message_range.start_sequence,
+            "endSequence": value.message_range.end_sequence,
+        },
+        "activityIds": list(value.activity_ids),
+        "provenance": _provenance(value.provenance),
+    }
+
+
+def _activity(value: Activity) -> dict[str, Any]:
+    return {
+        "activityId": value.activity_id,
+        "taskId": value.task_id,
+        "activityType": value.activity_type.value,
+        "sequence": value.sequence,
+        "timestamp": value.timestamp.isoformat() if value.timestamp else None,
+        "summary": value.summary,
+        "entityRefs": list(value.entity_refs),
+        "provenance": _provenance(value.provenance),
+    }
+
+
+def _boundary_candidate(value: TaskBoundaryCandidate) -> dict[str, Any]:
+    return {
+        "messageSequence": value.message_sequence,
+        "confidence": value.confidence,
+        "reasons": list(value.reasons),
         "provenance": _provenance(value.provenance),
     }
 
