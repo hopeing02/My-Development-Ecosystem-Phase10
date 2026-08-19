@@ -8,6 +8,7 @@ interface Props {
   onOpenCapture: (captureId: string) => void;
   onOpenTask: (taskId: string) => void;
   onOpenChatGPTSession?: (sessionId: string) => void;
+  onOpenChatGPTTask?: (sessionId: string, taskId: string) => void;
 }
 
 const COLORS: Record<string, string> = {
@@ -16,7 +17,7 @@ const COLORS: Record<string, string> = {
   CHATGPT_SESSION: "#10a37f", CHATGPT_MESSAGE: "#74cdb7",
 };
 
-export function CaptureGraph({ graph, onOpenCapture, onOpenTask, onOpenChatGPTSession }: Props) {
+export function CaptureGraph({ graph, onOpenCapture, onOpenTask, onOpenChatGPTSession, onOpenChatGPTTask }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const instance = useRef<Core | null>(null);
   const [description, setDescription] = useState("");
@@ -27,7 +28,7 @@ export function CaptureGraph({ graph, onOpenCapture, onOpenTask, onOpenChatGPTSe
     const next = cytoscape({
       container: container.current,
       elements: [
-        ...graph.nodes.map((node) => ({ data: { id: node.id, label: node.label, type: node.type, color: COLORS[node.type], sessionId: node.metadata.sessionId } })),
+        ...graph.nodes.map((node) => ({ data: { id: node.id, label: node.label, type: node.type, color: COLORS[node.type], sessionId: node.metadata.sessionId, taskId: node.metadata.taskId } })),
         ...graph.edges.map((edge) => ({ data: { id: edge.id, source: edge.from, target: edge.to, relationType: edge.type, candidate: edge.status !== "confirmed" } })),
       ],
       style: [
@@ -40,6 +41,9 @@ export function CaptureGraph({ graph, onOpenCapture, onOpenTask, onOpenChatGPTSe
     next.on("tap", "node", (event) => {
       const type = String(event.target.data("type"));
       if (type === "CLIPBOARD_CAPTURE" || type === "DEVELOPMENT_SESSION") onOpenCapture(event.target.id());
+      else if ((type === "TASK" || type === "ACTIVITY") && event.target.data("sessionId") && event.target.data("taskId") && onOpenChatGPTTask) {
+        onOpenChatGPTTask(String(event.target.data("sessionId")), String(event.target.data("taskId")));
+      }
       else if (type === "TASK" && event.target.data("sessionId") && onOpenChatGPTSession) onOpenChatGPTSession(String(event.target.data("sessionId")));
       else if (type === "TASK") onOpenTask(event.target.id());
       else if ((type === "CHATGPT_SESSION" || type === "CHATGPT_MESSAGE" || type === "ACTIVITY") && onOpenChatGPTSession) onOpenChatGPTSession(String(event.target.data("sessionId")));
@@ -50,7 +54,7 @@ export function CaptureGraph({ graph, onOpenCapture, onOpenTask, onOpenChatGPTSe
     });
     instance.current = next;
     return () => { instance.current = null; next.destroy(); };
-  }, [graph, onOpenCapture, onOpenTask, onOpenChatGPTSession]);
+  }, [graph, onOpenCapture, onOpenTask, onOpenChatGPTSession, onOpenChatGPTTask]);
 
   return <div className="capture-graph-shell">
     {graph && graph.nodes.length === 0 && <p className="graph-empty">그래프에 표시할 자료가 없습니다.</p>}

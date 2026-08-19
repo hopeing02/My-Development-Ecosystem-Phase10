@@ -3,9 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getChatGPTMessages,
   getChatGPTSession,
+  getChatGPTTask,
   importChatGPTExport,
   importChatGPTSharedLink,
   listChatGPTSessions,
+  listChatGPTTasks,
 } from "./api";
 
 describe("ChatGPT import API", () => {
@@ -99,12 +101,16 @@ describe("ChatGPT import API", () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], hasMore: false, total: 0 }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ session: { sessionId: "session-1" }, warnings: [] }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], hasMore: false, total: 0 }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], hasMore: false, total: 0 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], hasMore: false, total: 0 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ task: {}, activities: [] }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
     await listChatGPTSessions("design");
     await getChatGPTSession("session-1");
     await getChatGPTMessages("session-1");
+    await listChatGPTTasks("session-1");
+    await getChatGPTTask("task:session-1:0001");
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -119,6 +125,16 @@ describe("ChatGPT import API", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
       "/api/v1/chatgpt/sessions/session-1/messages?limit=100",
+      { headers: { Accept: "application/json" } },
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "/api/v1/chatgpt/tasks?sessionId=session-1&limit=100",
+      { headers: { Accept: "application/json" } },
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      "/api/v1/chatgpt/tasks/task%3Asession-1%3A0001",
       { headers: { Accept: "application/json" } },
     );
   });

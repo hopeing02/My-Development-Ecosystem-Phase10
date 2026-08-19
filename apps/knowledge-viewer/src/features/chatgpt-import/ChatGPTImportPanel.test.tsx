@@ -9,6 +9,8 @@ const api = vi.hoisted(() => ({
   listChatGPTSessions: vi.fn(),
   getChatGPTSession: vi.fn(),
   getChatGPTMessages: vi.fn(),
+  listChatGPTTasks: vi.fn(),
+  getChatGPTTask: vi.fn(),
   getChatGPTGraph: vi.fn(),
 }));
 
@@ -19,6 +21,8 @@ vi.mock("./api", async (importOriginal) => ({
   listChatGPTSessions: api.listChatGPTSessions,
   getChatGPTSession: api.getChatGPTSession,
   getChatGPTMessages: api.getChatGPTMessages,
+  listChatGPTTasks: api.listChatGPTTasks,
+  getChatGPTTask: api.getChatGPTTask,
   getChatGPTGraph: api.getChatGPTGraph,
 }));
 
@@ -54,6 +58,8 @@ describe("ChatGPTImportPanel", () => {
     api.getChatGPTSession.mockResolvedValue({
       session: { sessionId: "session-1", title: "Shared design", source: "chatgpt", createdAt: "2026-08-19T00:00:00Z", updatedAt: "2026-08-19T00:10:00Z", messageCount: 2, revision: 1, projectedAt: "2026-08-19T00:11:00Z", warningCount: 0, taskIds: [], provenance: { source: "original", sourceRefs: ["chatgpt:session-1"] } },
       warnings: [],
+      analysisWarnings: [],
+      boundaryCandidates: [],
     });
     api.getChatGPTMessages.mockResolvedValue({
       items: [
@@ -62,6 +68,48 @@ describe("ChatGPTImportPanel", () => {
       ],
       hasMore: false,
       total: 2,
+    });
+    const task = {
+      taskId: "task:session-1:0001",
+      sessionId: "session-1",
+      title: "Implement viewer",
+      status: "completed",
+      boundaryStatus: "suggested",
+      startedAt: "2026-08-19T00:00:00Z",
+      completedAt: "2026-08-19T00:10:00Z",
+      messageRange: { startSequence: 1, endSequence: 2 },
+      activityIds: ["activity-1", "activity-2"],
+      provenance: { source: "derived", derivedBy: "rule", confidence: 1, sourceRefs: [] },
+    };
+    api.listChatGPTTasks.mockResolvedValue({
+      items: [task],
+      hasMore: false,
+      total: 1,
+    });
+    api.getChatGPTTask.mockResolvedValue({
+      task,
+      activities: [
+        {
+          activityId: "activity-1",
+          taskId: task.taskId,
+          activityType: "request",
+          sequence: 1,
+          summary: "Implement the viewer",
+          entityRefs: ["message-1"],
+          provenance: { source: "derived", derivedBy: "rule", confidence: 1, sourceRefs: [] },
+        },
+        {
+          activityId: "activity-2",
+          taskId: task.taskId,
+          activityType: "result",
+          sequence: 2,
+          summary: "Viewer complete",
+          entityRefs: ["message-2"],
+          provenance: { source: "derived", derivedBy: "rule", confidence: 1, sourceRefs: [] },
+        },
+      ],
+      boundaryCandidates: [],
+      analysisWarnings: [],
     });
     api.getChatGPTGraph.mockResolvedValue({ nodes: [], edges: [], truncated: false, limit: 300, depth: 1 });
   });
@@ -121,5 +169,20 @@ describe("ChatGPTImportPanel", () => {
       ),
     );
     expect(await screen.findByText("가져오기 완료")).toBeInTheDocument();
+  });
+
+  it("shows Task activity flow and opens its original message", async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    render(<ChatGPTImportPanel />);
+
+    expect(await screen.findByText("Tasks 1")).toBeInTheDocument();
+    expect(screen.getByText("Implement viewer")).toBeInTheDocument();
+    const request = await screen.findByText("Implement the viewer");
+
+    fireEvent.click(request.closest("button")!);
+
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(document.getElementById("chatgpt-message-message-1")).toHaveClass("source-highlight");
   });
 });

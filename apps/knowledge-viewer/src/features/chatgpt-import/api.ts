@@ -5,6 +5,8 @@ import type {
   ChatGPTPage,
   ChatGPTSessionDetail,
   ChatGPTSessionSummary,
+  ChatGPTTaskDetail,
+  ChatGPTTaskSummary,
 } from "./types";
 
 export class ChatGPTImportApiError extends Error {
@@ -78,6 +80,19 @@ export function getChatGPTMessages(
   return requestQuery(
     `/api/v1/chatgpt/sessions/${encodeURIComponent(sessionId)}/messages?${parameters}`,
   );
+}
+
+export function listChatGPTTasks(
+  sessionId: string,
+  cursor?: string,
+): Promise<ChatGPTPage<ChatGPTTaskSummary>> {
+  const parameters = new URLSearchParams({ sessionId, limit: "100" });
+  if (cursor) parameters.set("cursor", cursor);
+  return requestQuery(`/api/v1/chatgpt/tasks?${parameters}`);
+}
+
+export function getChatGPTTask(taskId: string): Promise<ChatGPTTaskDetail> {
+  return requestQuery(`/api/v1/chatgpt/tasks/${encodeURIComponent(taskId)}`);
 }
 
 export function getChatGPTGraph(sessionId?: string): Promise<CaptureGraphData> {

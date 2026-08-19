@@ -7,15 +7,20 @@ import {
   getChatGPTGraph,
   getChatGPTMessages,
   getChatGPTSession,
+  getChatGPTTask,
   importChatGPTExport,
   importChatGPTSharedLink,
   listChatGPTSessions,
+  listChatGPTTasks,
 } from "./api";
 import type {
+  ChatGPTActivity,
   ChatGPTImportResult,
   ChatGPTMessage,
   ChatGPTSessionDetail,
   ChatGPTSessionSummary,
+  ChatGPTTaskDetail,
+  ChatGPTTaskSummary,
 } from "./types";
 
 const STATUS_LABELS = {
@@ -31,6 +36,8 @@ export function ChatGPTImportPanel() {
   const [selectedId, setSelectedId] = useState<string>();
   const [detail, setDetail] = useState<ChatGPTSessionDetail | null>(null);
   const [messages, setMessages] = useState<ChatGPTMessage[]>([]);
+  const [tasks, setTasks] = useState<ChatGPTTaskSummary[]>([]);
+  const [taskDetail, setTaskDetail] = useState<ChatGPTTaskDetail | null>(null);
   const [graph, setGraph] = useState<CaptureGraphData | null>(null);
   const [graphMode, setGraphMode] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -51,6 +58,8 @@ export function ChatGPTImportPanel() {
         setSelectedId(undefined);
         setDetail(null);
         setMessages([]);
+        setTasks([]);
+        setTaskDetail(null);
       }
     } catch (caught) {
       setError(queryError(caught));
@@ -59,13 +68,14 @@ export function ChatGPTImportPanel() {
     }
   }, [query]);
 
-  const openSession = useCallback(async (sessionId: string) => {
+  const openSession = useCallback(async (sessionId: string, preferredTaskId?: string) => {
     setSelectedId(sessionId);
     setError("");
     try {
-      const [nextDetail, firstPage] = await Promise.all([
+      const [nextDetail, firstPage, firstTaskPage] = await Promise.all([
         getChatGPTSession(sessionId),
         getChatGPTMessages(sessionId),
+        listChatGPTTasks(sessionId),
       ]);
       let page = firstPage;
       const items = [...page.items];
@@ -73,8 +83,30 @@ export function ChatGPTImportPanel() {
         page = await getChatGPTMessages(sessionId, page.nextCursor);
         items.push(...page.items);
       }
+      let taskPage = firstTaskPage;
+      const taskItems = [...taskPage.items];
+      while (taskPage.hasMore && taskPage.nextCursor) {
+        taskPage = await listChatGPTTasks(sessionId, taskPage.nextCursor);
+        taskItems.push(...taskPage.items);
+      }
+      const nextTaskId =
+        preferredTaskId &&
+        taskItems.some((item) => item.taskId === preferredTaskId)
+          ? preferredTaskId
+          : taskItems[0]?.taskId;
       setDetail(nextDetail);
       setMessages(items);
+      setTasks(taskItems);
+      setTaskDetail(nextTaskId ? await getChatGPTTask(nextTaskId) : null);
+    } catch (caught) {
+      setError(queryError(caught));
+    }
+  }, []);
+
+  const openTask = useCallback(async (taskId: string) => {
+    setError("");
+    try {
+      setTaskDetail(await getChatGPTTask(taskId));
     } catch (caught) {
       setError(queryError(caught));
     }
@@ -133,9 +165,15 @@ export function ChatGPTImportPanel() {
           </aside>
           <main className="chatgpt-session-main">
             {graphMode ? (
-              <CaptureGraph graph={graph} onOpenCapture={() => undefined} onOpenTask={() => undefined} onOpenChatGPTSession={(sessionId) => { setGraphMode(false); void openSession(sessionId); }} />
+              <CaptureGraph
+                graph={graph}
+                onOpenCapture={() => undefined}
+                onOpenTask={() => undefined}
+                onOpenChatGPTSession={(sessionId) => { setGraphMode(false); void openSession(sessionId); }}
+                onOpenChatGPTTask={(sessionId, taskId) => { setGraphMode(false); void openSession(sessionId, taskId); }}
+              />
             ) : detail ? (
-              <SessionDetail detail={detail} messages={messages} />
+              <SessionDetail detail={detail} messages={messages} tasks={tasks} taskDetail={taskDetail} onOpenTask={(taskId) => void openTask(taskId)} />
             ) : (
               <p className="empty-state">왼쪽에서 세션을 선택하세요.</p>
             )}
@@ -146,7 +184,7 @@ export function ChatGPTImportPanel() {
   );
 }
 
-function SessionDetail({ detail, messages }: { detail: ChatGPTSessionDetail; messages: ChatGPTMessage[] }) {
+function SessionDetail({ detail, messages, tasks, taskDetail, onOpenTask }: { detail: ChatGPTSessionDetail; messages: ChatGPTMessage[]; tasks: ChatGPTTaskSummary[]; taskDetail: ChatGPTTaskDetail | null; onOpenTask: (taskId: string) => void }) {
   return (
     <article className="chatgpt-session-detail">
       <span className="capture-badge source-chatgpt">ChatGPT 실제 세션</span>
@@ -159,10 +197,11 @@ function SessionDetail({ detail, messages }: { detail: ChatGPTSessionDetail; mes
         <dt>Revision</dt><dd>{detail.session.revision}</dd>
       </dl>
       {detail.warnings.length > 0 && <p className="warning">격리된 원본 항목 {detail.warnings.length}개 · Session 저장은 완료됨</p>}
+      <TaskWorkflow tasks={tasks} detail={taskDetail} onOpenTask={onOpenTask} onOpenMessage={focusOriginalMessage} />
       <h4>원본 대화 순서</h4>
       <div className="chatgpt-message-list">
         {messages.map((message) => (
-          <article key={message.messageId} className={`chatgpt-message role-${message.role}`}>
+          <article id={messageElementId(message.messageId)} key={message.messageId} className={`chatgpt-message role-${message.role}`}>
             <header><strong>{roleLabel(message.role)}</strong><span>#{message.sequence} · {message.timestamp ? new Date(message.timestamp).toLocaleString() : "시간 미상"}</span></header>
             <pre>{message.content}</pre>
           </article>
@@ -172,8 +211,64 @@ function SessionDetail({ detail, messages }: { detail: ChatGPTSessionDetail; mes
   );
 }
 
+function TaskWorkflow({ tasks, detail, onOpenTask, onOpenMessage }: { tasks: ChatGPTTaskSummary[]; detail: ChatGPTTaskDetail | null; onOpenTask: (taskId: string) => void; onOpenMessage: (messageId: string) => void }) {
+  return (
+    <section className="chatgpt-task-workflow" aria-labelledby="chatgpt-tasks-title">
+      <div className="chatgpt-task-heading">
+        <h4 id="chatgpt-tasks-title">Tasks {tasks.length}</h4>
+        <span>source=derived / rule</span>
+      </div>
+      {tasks.length === 0 ? (
+        <p className="empty-state">No Task was created without a confident user request.</p>
+      ) : (
+        <>
+          <div className="chatgpt-task-list">
+            {tasks.map((task, index) => (
+              <button
+                key={task.taskId}
+                className={detail?.task.taskId === task.taskId ? "active" : ""}
+                aria-pressed={detail?.task.taskId === task.taskId}
+                onClick={() => onOpenTask(task.taskId)}
+              >
+                <strong>Task {index + 1} / {task.title}</strong>
+                <small>{taskStatusLabel(task.status)} / confidence {confidenceLabel(task.provenance.confidence)}</small>
+              </button>
+            ))}
+          </div>
+          {detail && (
+            <article className="chatgpt-task-detail">
+              <header>
+                <div><span className={`task-status status-${detail.task.status}`}>{taskStatusLabel(detail.task.status)}</span><span className="task-boundary">{detail.task.boundaryStatus}</span></div>
+                <h5>{detail.task.title}</h5>
+                <p>Messages #{detail.task.messageRange.startSequence}-#{detail.task.messageRange.endSequence} / source=derived / {detail.task.provenance.derivedBy ?? "rule"}</p>
+              </header>
+              <ol className="chatgpt-activity-flow">
+                {detail.activities.map((activity) => {
+                  const messageId = activity.entityRefs[0];
+                  return (
+                    <li key={activity.activityId} className={`activity-${activity.activityType}`}>
+                      <button disabled={!messageId} onClick={() => messageId && onOpenMessage(messageId)}>
+                        <span>{activityLabel(activity.activityType)}</span>
+                        <strong>{activity.summary || "No summary"}</strong>
+                        <small>#{activity.sequence} / Open original message</small>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+              {detail.boundaryCandidates.length > 0 && <p className="warning">Unsplit Task boundary candidates: {detail.boundaryCandidates.length}</p>}
+              {detail.analysisWarnings.length > 0 && <p className="warning">Task analysis warnings: {detail.analysisWarnings.length}</p>}
+            </article>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 function ImportForms({ onImported }: { onImported: () => void }) {
   const [file, setFile] = useState<File | null>(null);
+
   const [controlApiKey, setControlApiKey] = useState("");
   const [sharedUrl, setSharedUrl] = useState("");
   const [busy, setBusy] = useState(false);
@@ -243,6 +338,45 @@ function queryError(caught: unknown): string {
   return caught instanceof ChatGPTImportApiError
     ? `${caught.message} (${caught.code})`
     : "ChatGPT 자료를 불러오지 못했습니다.";
+}
+
+function taskStatusLabel(status: ChatGPTTaskSummary["status"]): string {
+  return ({
+    planned: "\uACC4\uD68D",
+    in_progress: "\uC9C4\uD589 \uC911",
+    completed: "\uC644\uB8CC",
+    failed: "\uC2E4\uD328",
+    cancelled: "\uCDE8\uC18C",
+  })[status];
+}
+
+function activityLabel(type: ChatGPTActivity["activityType"]): string {
+  return ({
+    request: "\uC0AC\uC6A9\uC790 \uC694\uCCAD",
+    response: "AI \uC751\uB2F5",
+    decision: "\uACB0\uC815",
+    command: "\uBA85\uB839 \uC2E4\uD589",
+    file_change: "\uD30C\uC77C \uBCC0\uACBD",
+    test: "\uD14C\uC2A4\uD2B8",
+    result: "\uACB0\uACFC",
+    note: "\uB178\uD2B8",
+  })[type];
+}
+
+function confidenceLabel(confidence?: number | null): string {
+  return confidence == null ? "unknown" : Math.round(confidence * 100) + "%";
+}
+
+function messageElementId(messageId: string): string {
+  return "chatgpt-message-" + encodeURIComponent(messageId);
+}
+
+function focusOriginalMessage(messageId: string): void {
+  const element = document.getElementById(messageElementId(messageId));
+  if (!element) return;
+  element.scrollIntoView({ behavior: "smooth", block: "center" });
+  element.classList.add("source-highlight");
+  window.setTimeout(() => element.classList.remove("source-highlight"), 1600);
 }
 
 function roleLabel(role: ChatGPTMessage["role"]): string {

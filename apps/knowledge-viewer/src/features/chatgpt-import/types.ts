@@ -37,6 +37,8 @@ export interface ChatGPTSessionDetail {
     provenance: ChatGPTProvenance;
   };
   warnings: string[];
+  analysisWarnings: string[];
+  boundaryCandidates: ChatGPTBoundaryCandidate[];
 }
 
 export interface ChatGPTMessage {
@@ -55,6 +57,45 @@ export interface ChatGPTProvenance {
   derivedBy?: string | null;
   confidence?: number | null;
   sourceRefs: string[];
+}
+
+export interface ChatGPTTaskSummary {
+  taskId: string;
+  sessionId: string;
+  title: string;
+  summary?: string | null;
+  status: "planned" | "in_progress" | "completed" | "failed" | "cancelled";
+  boundaryStatus: "suggested" | "confirmed" | "uncertain" | "manual";
+  startedAt?: string | null;
+  completedAt?: string | null;
+  messageRange: { startSequence: number; endSequence: number };
+  activityIds: string[];
+  provenance: ChatGPTProvenance;
+}
+
+export interface ChatGPTActivity {
+  activityId: string;
+  taskId: string;
+  activityType: "request" | "response" | "decision" | "command" | "file_change" | "test" | "result" | "note";
+  sequence: number;
+  timestamp?: string | null;
+  summary?: string | null;
+  entityRefs: string[];
+  provenance: ChatGPTProvenance;
+}
+
+export interface ChatGPTBoundaryCandidate {
+  messageSequence: number;
+  confidence: number;
+  reasons: string[];
+  provenance: ChatGPTProvenance;
+}
+
+export interface ChatGPTTaskDetail {
+  task: ChatGPTTaskSummary;
+  activities: ChatGPTActivity[];
+  boundaryCandidates: ChatGPTBoundaryCandidate[];
+  analysisWarnings: string[];
 }
 
 export interface ChatGPTPage<T> {
