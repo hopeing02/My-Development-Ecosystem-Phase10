@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from autoknowledge_lite.api import create_app
 from autoknowledge_lite.capture_api import normalize_capture_text
+from autoknowledge_lite.chatgpt_import import ChatGPTProjectionStore
+from autoknowledge_lite.chatgpt_knowledge_adapter import ChatGPTKnowledgeAdapter
+from autoknowledge_lite.chatgpt_session_source import ChatGPTSessionReference
 from autoknowledge_lite.obsidian import ObsidianNoteStore
 from autoknowledge_lite.store import JsonShareStore
 
@@ -35,6 +39,44 @@ def api(tmp_path: Path) -> TestClient:
             note_store=ObsidianNoteStore(tmp_path / "vault"),
             mde_client=NullIndexer(),
         )
+    )
+
+
+def save_chatgpt_projection(tmp_path: Path) -> None:
+    projection = ChatGPTKnowledgeAdapter().project(
+        {
+            "id": "chatgpt-graph-session",
+            "title": "Graph integration",
+            "create_time": 1_700_000_000,
+            "update_time": 1_700_000_100,
+            "messages": [
+                {
+                    "id": "chatgpt-user",
+                    "role": "user",
+                    "content": "Knowledge Graph에 연결해줘",
+                },
+                {
+                    "id": "chatgpt-assistant",
+                    "role": "assistant",
+                    "content": "그래프 연결을 완료했습니다.",
+                },
+            ],
+        }
+    )
+    ChatGPTProjectionStore(
+        tmp_path / "data",
+        clock=lambda: datetime(2026, 8, 19, tzinfo=UTC),
+    ).save(
+        projection,
+        import_id="graph-integration",
+        session_ref=ChatGPTSessionReference(
+            source_session_id="chatgpt-graph-session",
+            title="Graph integration",
+            source_member="conversations.json",
+            source_index=0,
+            source_format="chatgpt_data_export",
+        ),
+        source_content_hash="c" * 64,
     )
 
 
@@ -251,6 +293,40 @@ def test_capture_graph_uses_collected_files_tests_and_depth(tmp_path: Path) -> N
     assert all(
         edge["from"] in node_ids and edge["to"] in node_ids for edge in compact["edges"]
     )
+
+
+def test_knowledge_graph_includes_chatgpt_task_activity_chain(tmp_path: Path) -> None:
+    save_chatgpt_projection(tmp_path)
+    client = api(tmp_path)
+
+    graph = client.get("/api/v1/graph").json()
+
+    assert {node["type"] for node in graph["nodes"]} == {
+        "CHATGPT_SESSION",
+        "CHATGPT_MESSAGE",
+        "TASK",
+        "ACTIVITY",
+    }
+    assert {edge["type"] for edge in graph["edges"]} == {
+        "contains_message",
+        "contains_task",
+        "contains_activity",
+        "derived_from",
+    }
+    assert graph["warnings"] == []
+
+    task_node = next(node for node in graph["nodes"] if node["type"] == "TASK")
+    neighborhood = client.get(
+        f"/api/v1/graph/neighborhood/{task_node['id']}", params={"depth": 1}
+    ).json()
+    assert {node["type"] for node in neighborhood["nodes"]} >= {
+        "CHATGPT_SESSION",
+        "TASK",
+        "ACTIVITY",
+    }
+
+    filtered = client.get("/api/v1/graph", params={"sourceType": "codex"}).json()
+    assert filtered["nodes"] == []
 
 
 def test_document_backlinks_keep_capture_relation_type(tmp_path: Path) -> None:

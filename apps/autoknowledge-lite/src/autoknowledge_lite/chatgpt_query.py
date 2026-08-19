@@ -180,6 +180,7 @@ class ChatGPTQueryService:
         edges: list[dict[str, Any]] = []
         for revision in revisions:
             session = revision.projection.session
+            analysis = self._analysis(revision)
             session_node = _session_node_id(session.session_id)
             nodes.append(
                 {
@@ -217,6 +218,72 @@ class ChatGPTQueryService:
                         "status": "confirmed",
                     }
                 )
+            for task in analysis.tasks:
+                nodes.append(
+                    {
+                        "id": task.task_id,
+                        "type": "TASK",
+                        "label": task.title,
+                        "metadata": {
+                            "sessionId": session.session_id,
+                            "taskId": task.task_id,
+                            "status": task.status.value,
+                            "boundaryStatus": task.boundary_status.value,
+                            "confidence": task.provenance.confidence,
+                        },
+                    }
+                )
+                edges.append(
+                    {
+                        "id": f"contains-task:{session_node}:{task.task_id}",
+                        "from": session_node,
+                        "to": task.task_id,
+                        "type": "contains_task",
+                        "status": task.boundary_status.value,
+                    }
+                )
+            for activity in analysis.activities:
+                nodes.append(
+                    {
+                        "id": activity.activity_id,
+                        "type": "ACTIVITY",
+                        "label": (
+                            f"{activity.activity_type.value} #{activity.sequence}"
+                        ),
+                        "metadata": {
+                            "sessionId": session.session_id,
+                            "taskId": activity.task_id,
+                            "activityId": activity.activity_id,
+                            "activityType": activity.activity_type.value,
+                            "sequence": activity.sequence,
+                        },
+                    }
+                )
+                edges.append(
+                    {
+                        "id": (
+                            f"contains-activity:{activity.task_id}:"
+                            f"{activity.activity_id}"
+                        ),
+                        "from": activity.task_id,
+                        "to": activity.activity_id,
+                        "type": "contains_activity",
+                        "status": "confirmed",
+                    }
+                )
+                for message_id in activity.entity_refs:
+                    message_node = _message_node_id(session.session_id, message_id)
+                    edges.append(
+                        {
+                            "id": (
+                                f"derived-from:{activity.activity_id}:{message_node}"
+                            ),
+                            "from": activity.activity_id,
+                            "to": message_node,
+                            "type": "derived_from",
+                            "status": "confirmed",
+                        }
+                    )
         truncated = len(nodes) > limit
         if truncated:
             kept_ids = {item["id"] for item in nodes[:limit]}

@@ -12,7 +12,7 @@ interface Props {
 
 const COLORS: Record<string, string> = {
   DOCUMENT: "#4f7cff", PROJECT: "#9b59b6", CLIPBOARD_CAPTURE: "#2f9e72",
-  DEVELOPMENT_SESSION: "#e07824", TASK: "#d09a18", FILE: "#697386", COMMAND: "#40536d", TEST_RESULT: "#c14545",
+  DEVELOPMENT_SESSION: "#e07824", TASK: "#d09a18", ACTIVITY: "#e5bd55", FILE: "#697386", COMMAND: "#40536d", TEST_RESULT: "#c14545",
   CHATGPT_SESSION: "#10a37f", CHATGPT_MESSAGE: "#74cdb7",
 };
 
@@ -40,8 +40,9 @@ export function CaptureGraph({ graph, onOpenCapture, onOpenTask, onOpenChatGPTSe
     next.on("tap", "node", (event) => {
       const type = String(event.target.data("type"));
       if (type === "CLIPBOARD_CAPTURE" || type === "DEVELOPMENT_SESSION") onOpenCapture(event.target.id());
+      else if (type === "TASK" && event.target.data("sessionId") && onOpenChatGPTSession) onOpenChatGPTSession(String(event.target.data("sessionId")));
       else if (type === "TASK") onOpenTask(event.target.id());
-      else if ((type === "CHATGPT_SESSION" || type === "CHATGPT_MESSAGE") && onOpenChatGPTSession) onOpenChatGPTSession(String(event.target.data("sessionId")));
+      else if ((type === "CHATGPT_SESSION" || type === "CHATGPT_MESSAGE" || type === "ACTIVITY") && onOpenChatGPTSession) onOpenChatGPTSession(String(event.target.data("sessionId")));
       else setDescription(`${typeLabel(type)} 노드, ${event.target.data("label")}`);
     });
     next.on("tap", "edge", (event) => {
@@ -60,9 +61,9 @@ export function CaptureGraph({ graph, onOpenCapture, onOpenTask, onOpenChatGPTSe
 }
 
 function typeLabel(type: string) {
-  return ({ DOCUMENT: "문서", PROJECT: "프로젝트", TASK: "Task", FILE: "파일", COMMAND: "명령", TEST_RESULT: "테스트", CHATGPT_SESSION: "ChatGPT 세션", CHATGPT_MESSAGE: "ChatGPT 메시지" } as Record<string, string>)[type] ?? "Capture";
+  return ({ DOCUMENT: "문서", PROJECT: "프로젝트", TASK: "Task", ACTIVITY: "Activity", FILE: "파일", COMMAND: "명령", TEST_RESULT: "테스트", CHATGPT_SESSION: "ChatGPT 세션", CHATGPT_MESSAGE: "ChatGPT 메시지" } as Record<string, string>)[type] ?? "Capture";
 }
 
 function relationLabel(type: string) {
-  return ({ parent_of: "상위 주제", references: "문서 참조", belongs_to_project: "프로젝트 소속", excerpt_of: "전체 세션 포함", contains_task: "Task 포함", contains_message: "메시지 포함", changed_file: "파일 변경", executed_command: "명령 실행", tested_by: "테스트", modifies: "Task 파일 변경", executes: "Task 명령 실행", runs: "Task 테스트" } as Record<string, string>)[type] ?? type;
+  return ({ parent_of: "상위 주제", references: "문서 참조", belongs_to_project: "프로젝트 소속", excerpt_of: "전체 세션 포함", contains_task: "Task 포함", contains_message: "메시지 포함", contains_activity: "Activity 포함", derived_from: "원본 메시지", changed_file: "파일 변경", executed_command: "명령 실행", tested_by: "테스트", modifies: "Task 파일 변경", executes: "Task 명령 실행", runs: "Task 테스트" } as Record<string, string>)[type] ?? type;
 }

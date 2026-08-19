@@ -97,3 +97,40 @@ test("opens a Task node without replacing existing capture node behavior", () =>
   expect(onOpenTask).toHaveBeenCalledWith("task:session:session");
   expect(onOpenCapture).not.toHaveBeenCalled();
 });
+
+test("opens ChatGPT Task and Activity nodes through their source session", () => {
+  const onOpenTask = vi.fn();
+  const onOpenChatGPTSession = vi.fn();
+  render(
+    <CaptureGraph
+      graph={{
+        depth: 1,
+        limit: 300,
+        truncated: false,
+        nodes: [
+          { id: "task:chatgpt:1", type: "TASK", label: "ChatGPT Task", metadata: { sessionId: "chatgpt-1" } },
+          { id: "activity:chatgpt:1", type: "ACTIVITY", label: "request #1", metadata: { sessionId: "chatgpt-1" } },
+        ],
+        edges: [
+          { id: "contains", from: "task:chatgpt:1", to: "activity:chatgpt:1", type: "contains_activity", status: "confirmed" },
+        ],
+      }}
+      onOpenCapture={vi.fn()}
+      onOpenTask={onOpenTask}
+      onOpenChatGPTSession={onOpenChatGPTSession}
+    />,
+  );
+
+  for (const type of ["TASK", "ACTIVITY"]) {
+    cytoscapeState.handlers.node({
+      target: {
+        id: () => type.toLowerCase(),
+        data: (key) => ({ type, sessionId: "chatgpt-1", label: type } as Record<string, string>)[key],
+      },
+    });
+  }
+
+  expect(onOpenChatGPTSession).toHaveBeenCalledTimes(2);
+  expect(onOpenChatGPTSession).toHaveBeenCalledWith("chatgpt-1");
+  expect(onOpenTask).not.toHaveBeenCalled();
+});

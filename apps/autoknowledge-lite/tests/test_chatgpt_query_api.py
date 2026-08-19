@@ -192,9 +192,16 @@ def test_returns_session_message_knowledge_graph(tmp_path: Path) -> None:
     assert {item["type"] for item in graph["nodes"]} == {
         "CHATGPT_SESSION",
         "CHATGPT_MESSAGE",
+        "TASK",
+        "ACTIVITY",
     }
-    assert len(graph["edges"]) == 2
-    assert {item["type"] for item in graph["edges"]} == {"contains_message"}
+    assert len(graph["edges"]) == 7
+    assert {item["type"] for item in graph["edges"]} == {
+        "contains_message",
+        "contains_task",
+        "contains_activity",
+        "derived_from",
+    }
     assert all("content" not in item["metadata"] for item in graph["nodes"])
 
 

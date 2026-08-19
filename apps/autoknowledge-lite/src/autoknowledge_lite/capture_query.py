@@ -7,7 +7,7 @@ import json
 import re
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
@@ -35,6 +35,12 @@ class CaptureQueryError(RuntimeError):
         self.status_code = status_code
 
 
+class KnowledgeGraphProvider(Protocol):
+    def graph(
+        self, *, session_id: str | None = None, limit: int = MAX_GRAPH_NODES
+    ) -> dict[str, Any]: ...
+
+
 class CaptureMetadataUpdate(BaseModel):
     """Editable Capture metadata; collected evidence is intentionally absent."""
 
@@ -52,9 +58,15 @@ class CaptureMetadataUpdate(BaseModel):
 class CaptureQueryService:
     """Query and graph facade over the relation repository's safe projection."""
 
-    def __init__(self, repository: CaptureRelationRepository) -> None:
+    def __init__(
+        self,
+        repository: CaptureRelationRepository,
+        *,
+        graph_provider: KnowledgeGraphProvider | None = None,
+    ) -> None:
         self.repository = repository
         self.notes_path = repository.root / "capture-viewer-metadata-v1.json"
+        self.graph_provider = graph_provider
 
     def list_captures(
         self,
@@ -337,6 +349,7 @@ class CaptureQueryService:
         }
         nodes: dict[str, dict[str, Any]] = {}
         edges: list[dict[str, Any]] = []
+        graph_warnings: list[str] = []
 
         def add_node(
             node_id: str,
@@ -506,6 +519,34 @@ class CaptureQueryService:
                 relation.status.value,
             )
 
+        include_extended_graph = (
+            self.graph_provider is not None
+            and project_id is None
+            and test_status is None
+            and source_type in {None, "chatgpt"}
+        )
+        if include_extended_graph:
+            try:
+                extended = self.graph_provider.graph(limit=MAX_GRAPH_NODES)
+            except RuntimeError:
+                graph_warnings.append("CHATGPT_GRAPH_UNAVAILABLE")
+            else:
+                for node in extended.get("nodes", []):
+                    add_node(
+                        str(node["id"]),
+                        str(node["type"]),
+                        str(node["label"]),
+                        dict(node.get("metadata") or {}),
+                    )
+                for edge in extended.get("edges", []):
+                    add_edge(
+                        str(edge["id"]),
+                        str(edge["from"]),
+                        str(edge["to"]),
+                        str(edge["type"]),
+                        str(edge.get("status") or "confirmed"),
+                    )
+
         edges = [
             edge for edge in edges if edge["from"] in nodes and edge["to"] in nodes
         ]
@@ -535,6 +576,7 @@ class CaptureQueryService:
             "truncated": truncated,
             "limit": limit,
             "depth": depth,
+            "warnings": graph_warnings,
         }
 
     def _required(self, capture_id: str) -> dict[str, Any]:

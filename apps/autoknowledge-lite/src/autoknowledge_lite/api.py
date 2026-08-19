@@ -143,12 +143,16 @@ def create_app(
         indexer=knowledge_indexer,
         knowledge_source=knowledge_source,
     )
+    chatgpt_query_service = ChatGPTQueryService(share_store.root)
     install_capture_api(application, unified_capture_service)
     if unified_capture_service.relation_service is not None:
         install_relation_api(application, unified_capture_service.relation_service)
         install_capture_query_api(
             application,
-            CaptureQueryService(unified_capture_service.relation_service.repository),
+            CaptureQueryService(
+                unified_capture_service.relation_service.repository,
+                graph_provider=chatgpt_query_service,
+            ),
         )
     install_codex_control_api(application, codex_controller)
     install_chatgpt_import_api(
@@ -159,7 +163,7 @@ def create_app(
         application,
         chatgpt_shared_import_service or ChatGPTSharedImportService(share_store.root),
     )
-    install_chatgpt_query_api(application, ChatGPTQueryService(share_store.root))
+    install_chatgpt_query_api(application, chatgpt_query_service)
 
     @application.get("/v1/status", response_model=StatusResponse)
     async def get_status() -> StatusResponse:
