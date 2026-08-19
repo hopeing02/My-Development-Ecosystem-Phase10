@@ -47,6 +47,30 @@ def write_snapshot(path: Path, record: dict[str, object]) -> bytes:
     return original
 
 
+def streamed_reference_table(value: object) -> list[object]:
+    table: list[object] = []
+
+    def store(item: object) -> int:
+        if item is None:
+            return -5
+        index = len(table)
+        table.append(None)
+        if isinstance(item, dict):
+            encoded: dict[str, int] = {}
+            table[index] = encoded
+            for key, child in item.items():
+                encoded[f"_{store(key)}"] = store(child)
+        elif isinstance(item, list):
+            encoded_list = [store(child) for child in item]
+            table[index] = encoded_list
+        else:
+            table[index] = item
+        return index
+
+    assert store(value) == 0
+    return table
+
+
 def test_discovers_structured_shared_conversation_without_mutating_snapshot(
     tmp_path: Path,
 ) -> None:
@@ -62,6 +86,37 @@ def test_discovers_structured_shared_conversation_without_mutating_snapshot(
     assert discovery.sessions[0].source_session_id == SHARE_ID
     assert discovery.sessions[0].source_format == "chatgpt_shared_link"
     assert projected == expected
+    assert snapshot.read_bytes() == original
+
+
+def test_discovers_current_streamed_loader_conversation_without_mutating_snapshot(
+    tmp_path: Path,
+) -> None:
+    snapshot = tmp_path / "share.html"
+    record = conversation()
+    loader = {
+        "loaderData": {
+            "routes/share.$shareId.($action)": {"serverResponse": {"data": record}}
+        }
+    }
+    reference_table = streamed_reference_table(loader)
+    cycle_key = len(reference_table)
+    reference_table.append("cycle")
+    assert isinstance(reference_table[0], dict)
+    reference_table[0][f"_{cycle_key}"] = 0
+    streamed = json.dumps(reference_table, separators=(",", ":"))
+    original = (
+        "<html><script>window.streamController.enqueue("
+        f"{json.dumps(streamed)})</script></html>"
+    ).encode()
+    snapshot.write_bytes(original)
+
+    source = ChatGPTSharedLinkSource(SHARE_URL, snapshot)
+    discovery = source.discover_sessions()
+    projected = source.read_session(discovery.sessions[0])
+
+    assert discovery.sessions[0].source_session_id == SHARE_ID
+    assert projected == record
     assert snapshot.read_bytes() == original
 
 

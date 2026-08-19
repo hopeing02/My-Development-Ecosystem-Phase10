@@ -21,6 +21,7 @@ MAX_DECODE_DEPTH = 3
 MAX_TRAVERSED_VALUES = 100_000
 SHARE_PATH_PATTERN = re.compile(r"^/share/([A-Za-z0-9_-]{8,128})/?$")
 JSON_STRING_PATTERN = re.compile(r'"(?:[^"\\]|\\.)*"')
+REFERENCE_KEY_PATTERN = re.compile(r"^_(\d+)$")
 COPIED_URL_IGNORABLES = str.maketrans("", "", "\u200b\u200c\u200d\u2060\ufeff")
 
 
@@ -98,10 +99,18 @@ class ChatGPTSharedLinkSource:
         decoded = list(self._decoded_values(snapshot))
         records: list[Mapping[str, Any]] = []
         seen: set[str] = set()
+        seen_containers: set[int] = set()
         traversed = 0
         pending: list[Any] = decoded[:]
         while pending:
             value = pending.pop()
+            if isinstance(value, Mapping) or (
+                isinstance(value, Sequence) and not isinstance(value, (str, bytes))
+            ):
+                container_id = id(value)
+                if container_id in seen_containers:
+                    continue
+                seen_containers.add(container_id)
             traversed += 1
             if traversed > MAX_TRAVERSED_VALUES:
                 raise ChatGPTSharedLinkSourceError(
@@ -142,6 +151,9 @@ class ChatGPTSharedLinkSource:
                         decoded = None
                     if decoded is not None:
                         yield decoded
+                        referenced = _decode_reference_table(decoded)
+                        if referenced is not None:
+                            yield referenced
                 for token in JSON_STRING_PATTERN.findall(source):
                     try:
                         value = json.loads(token)
@@ -272,3 +284,66 @@ def canonical_chatgpt_shared_url(url: str) -> str:
             "Shared link must use /share/<conversation-ID>",
         )
     return f"https://chatgpt.com/share/{match.group(1)}"
+
+
+def _decode_reference_table(value: Any) -> Any | None:
+    """Decode ChatGPT's streamed loader reference table when one is present."""
+
+    if (
+        not isinstance(value, list)
+        or not value
+        or len(value) > MAX_TRAVERSED_VALUES
+        or not isinstance(value[0], Mapping)
+        or not value[0]
+        or not all(
+            isinstance(key, str) and REFERENCE_KEY_PATTERN.fullmatch(key)
+            for key in value[0]
+        )
+    ):
+        return None
+
+    memo: dict[int, Any] = {}
+
+    def resolve(reference: int) -> Any:
+        if reference < 0:
+            return None
+        if reference >= len(value):
+            raise ValueError("reference is outside the streamed loader table")
+        if reference in memo:
+            return memo[reference]
+
+        item = value[reference]
+        if isinstance(item, Mapping):
+            decoded: dict[str, Any] = {}
+            memo[reference] = decoded
+            for encoded_key, encoded_value in item.items():
+                match = REFERENCE_KEY_PATTERN.fullmatch(encoded_key)
+                if match is None:
+                    raise ValueError("streamed loader object is malformed")
+                key = resolve(int(match.group(1)))
+                if not isinstance(key, str):
+                    raise ValueError("streamed loader object key is not text")
+                decoded[key] = (
+                    resolve(encoded_value)
+                    if type(encoded_value) is int
+                    else encoded_value
+                )
+            return decoded
+        if isinstance(item, list):
+            decoded_list: list[Any] = []
+            memo[reference] = decoded_list
+            for encoded_value in item:
+                decoded_list.append(
+                    resolve(encoded_value)
+                    if type(encoded_value) is int
+                    else encoded_value
+                )
+            return decoded_list
+
+        memo[reference] = item
+        return item
+
+    try:
+        return resolve(0)
+    except (RecursionError, ValueError):
+        return None
