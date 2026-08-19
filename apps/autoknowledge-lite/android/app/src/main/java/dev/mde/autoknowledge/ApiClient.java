@@ -281,6 +281,48 @@ final class ApiClient {
         ));
     }
 
+    static ChatGPTImportResult importChatGPTSharedLink(
+            String serverUrl,
+            String apiKey,
+            String sharedUrl
+    ) throws IOException, JSONException {
+        JSONObject response = requestJson(
+                serverUrl,
+                "/api/v1/chatgpt/shared-imports",
+                "POST",
+                apiKey,
+                new JSONObject().put("url", sharedUrl)
+        );
+        return ChatGPTImportResult.fromJson(response);
+    }
+
+    static ChatGPTImportResult importChatGPTExport(
+            String serverUrl,
+            String apiKey,
+            InputStream input
+    ) throws IOException, JSONException {
+        HttpURLConnection connection = (HttpURLConnection) new URL(
+                normalize(serverUrl) + "/api/v1/chatgpt/imports"
+        ).openConnection();
+        connection.setRequestMethod("POST");
+        connection.setConnectTimeout(10_000);
+        connection.setReadTimeout(120_000);
+        connection.setRequestProperty("Accept", "application/json");
+        connection.setRequestProperty("Authorization", "Bearer " + apiKey);
+        connection.setRequestProperty("Content-Type", "application/zip");
+        connection.setRequestProperty("X-File-Name", "chatgpt-export.zip");
+        connection.setChunkedStreamingMode(64 * 1024);
+        connection.setDoOutput(true);
+        try (InputStream source = input; OutputStream output = connection.getOutputStream()) {
+            byte[] buffer = new byte[64 * 1024];
+            int count;
+            while ((count = source.read(buffer)) != -1) {
+                output.write(buffer, 0, count);
+            }
+        }
+        return ChatGPTImportResult.fromJson(readJsonResponse(connection));
+    }
+
     private static JSONObject requestJson(
             String serverUrl,
             String path,
@@ -302,18 +344,32 @@ final class ApiClient {
                 output.write(body.toString().getBytes(StandardCharsets.UTF_8));
             }
         }
+        return readJsonResponse(connection);
+    }
+
+    private static JSONObject readJsonResponse(HttpURLConnection connection)
+            throws IOException, JSONException {
         int status = connection.getResponseCode();
         String responseBody;
         try {
-            responseBody = readBody(status >= 400 ? connection.getErrorStream() : connection.getInputStream());
+            responseBody = readBody(
+                    status >= 400 ? connection.getErrorStream() : connection.getInputStream()
+            );
         } finally {
             connection.disconnect();
         }
-        JSONObject response = responseBody.isEmpty() ? new JSONObject() : new JSONObject(responseBody);
+        JSONObject response = responseBody.isEmpty()
+                ? new JSONObject()
+                : new JSONObject(responseBody);
         if (status >= 400) {
             JSONObject error = response.optJSONObject("error");
-            String code = error == null ? "HTTP_" + status : error.optString("code", "HTTP_" + status);
-            throw new IOException("Codex control failed: " + code);
+            if (error == null) {
+                error = response.optJSONObject("detail");
+            }
+            String code = error == null
+                    ? "HTTP_" + status
+                    : error.optString("code", "HTTP_" + status);
+            throw new IOException("Control API request failed: " + code);
         }
         return response;
     }

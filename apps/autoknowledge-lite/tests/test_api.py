@@ -59,7 +59,7 @@ def test_status_reports_service_version(tmp_path: Path) -> None:
     assert response.json() == {
         "service": "autoknowledge-lite",
         "status": "ok",
-        "version": "0.2.3",
+        "version": "0.2.4",
     }
 
 
@@ -142,7 +142,7 @@ def test_android_apk_download_serves_only_configured_file(tmp_path: Path) -> Non
     assert response.status_code == 200
     assert response.content == b"safe-apk"
     assert response.headers["content-type"] == "application/vnd.android.package-archive"
-    assert "autoknowledge-lite-v0.2.3.apk" in response.headers["content-disposition"]
+    assert "autoknowledge-lite-v0.2.4.apk" in response.headers["content-disposition"]
 
 
 def test_android_apk_download_returns_not_found_when_build_is_missing(

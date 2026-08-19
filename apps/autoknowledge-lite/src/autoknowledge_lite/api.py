@@ -67,7 +67,7 @@ from autoknowledge_lite.store import (
 )
 
 LOGGER = logging.getLogger(__name__)
-APP_VERSION = "0.2.3"
+APP_VERSION = "0.2.4"
 ANDROID_APK_PATH = (
     Path(__file__).resolve().parents[2]
     / "android"

@@ -9,6 +9,7 @@ import pytest
 from autoknowledge_lite.chatgpt_shared_link_source import (
     ChatGPTSharedLinkSource,
     ChatGPTSharedLinkSourceError,
+    canonical_chatgpt_shared_url,
 )
 from autoknowledge_lite.chatgpt_knowledge_adapter import ChatGPTKnowledgeAdapter
 from autoknowledge_lite.knowledge_model import DataSource
@@ -72,7 +73,6 @@ def test_discovers_structured_shared_conversation_without_mutating_snapshot(
         f"https://chatgpt.com.evil.test/share/{SHARE_ID}",
         f"https://user@chatgpt.com/share/{SHARE_ID}",
         f"https://chatgpt.com:invalid/share/{SHARE_ID}",
-        f"https://chatgpt.com/share/{SHARE_ID}?source=test",
         "https://chatgpt.com/",
     ],
 )
@@ -84,6 +84,13 @@ def test_rejects_noncanonical_shared_urls(tmp_path: Path, url: str) -> None:
         ChatGPTSharedLinkSource(url, snapshot)
 
     assert raised.value.code == "CHATGPT_SHARED_URL_INVALID"
+
+
+def test_canonicalizes_safe_mobile_copy_variants() -> None:
+    assert (
+        canonical_chatgpt_shared_url(f"\u200b{SHARE_URL}?source=mobile#copied\ufeff")
+        == SHARE_URL
+    )
 
 
 def test_deduplicates_repeated_payload_and_prefers_matching_share_id(

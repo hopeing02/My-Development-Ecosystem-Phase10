@@ -52,6 +52,25 @@ def test_fetches_only_explicit_html_snapshot_without_credentials() -> None:
     assert "cookie" not in requests[0].headers
 
 
+def test_fetch_normalizes_mobile_copy_parameters_before_request() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "text/html"},
+            content=b"<html>shared</html>",
+        )
+
+    fetched = ChatGPTSharedSnapshotFetcher(client(handler)).fetch(
+        f"\u200b{SHARE_URL}?source=mobile#copied\ufeff"
+    )
+
+    assert str(requests[0].url) == SHARE_URL
+    assert fetched.shared_url == SHARE_URL
+
+
 def test_rejects_redirect_to_another_conversation() -> None:
     other_url = "https://chatgpt.com/share/other-conversation"
 
@@ -62,6 +81,26 @@ def test_rejects_redirect_to_another_conversation() -> None:
         ChatGPTSharedSnapshotFetcher(client(handler)).fetch(SHARE_URL)
 
     assert raised.value.code == "CHATGPT_SHARED_REDIRECT_REJECTED"
+
+
+def test_strips_parameters_from_same_conversation_redirect() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if len(requests) == 1:
+            return httpx.Response(
+                302, headers={"Location": f"{SHARE_URL}?source=redirect"}
+            )
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "text/html"},
+            content=b"<html>shared</html>",
+        )
+
+    ChatGPTSharedSnapshotFetcher(client(handler)).fetch(SHARE_URL)
+
+    assert [str(request.url) for request in requests] == [SHARE_URL, SHARE_URL]
 
 
 @pytest.mark.parametrize(

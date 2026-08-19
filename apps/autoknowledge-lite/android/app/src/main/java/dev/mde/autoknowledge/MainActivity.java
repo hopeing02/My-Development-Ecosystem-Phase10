@@ -5,10 +5,12 @@ import android.app.AlertDialog;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.provider.OpenableColumns;
 import android.text.InputType;
 import android.text.method.PasswordTransformationMethod;
 import android.view.View;
@@ -24,6 +26,8 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -32,8 +36,10 @@ public final class MainActivity extends Activity {
     static final String PREFERENCES = "autoknowledge";
     static final String SERVER_URL = "server_url";
     static final String VAULT_FOLDER = "vault_folder";
+    private static final int REQUEST_CHATGPT_EXPORT = 2001;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final ExecutorService codexExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService chatgptExecutor = Executors.newSingleThreadExecutor();
     private String selectedParentDocumentId = "";
     private TextView selectedParentText;
     private Button clearParentButton;
@@ -45,6 +51,10 @@ public final class MainActivity extends Activity {
     private TextView selectedCodexSessionText;
     private TextView codexCaptureStatusText;
     private Spinner codexProjectSpinner;
+    private EditText controlApiKeyInput;
+    private Uri selectedChatGPTExportUri;
+    private TextView selectedChatGPTExportText;
+    private TextView chatgptImportStatusText;
     private String knowledgeViewerUrl = "";
 
     @Override
@@ -271,6 +281,7 @@ public final class MainActivity extends Activity {
         layout.addView(saveClipboard);
 
         buildCodexCaptureSection(layout, padding, serverUrl);
+        buildChatGPTImportSection(layout, padding, serverUrl);
 
         ScrollView scrollView = new ScrollView(this);
         scrollView.addView(layout);
@@ -297,12 +308,12 @@ public final class MainActivity extends Activity {
         );
         layout.addView(notice);
 
-        EditText controlKey = new EditText(this);
-        controlKey.setHint("모바일 제어 API 키");
-        controlKey.setSingleLine(true);
-        controlKey.setTransformationMethod(PasswordTransformationMethod.getInstance());
-        controlKey.setText(captureDependencies.settings.controlApiKey());
-        layout.addView(controlKey, new LinearLayout.LayoutParams(
+        controlApiKeyInput = new EditText(this);
+        controlApiKeyInput.setHint("모바일 제어 API 키");
+        controlApiKeyInput.setSingleLine(true);
+        controlApiKeyInput.setTransformationMethod(PasswordTransformationMethod.getInstance());
+        controlApiKeyInput.setText(captureDependencies.settings.controlApiKey());
+        layout.addView(controlApiKeyInput, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
@@ -310,7 +321,7 @@ public final class MainActivity extends Activity {
         Button checkConnection = new Button(this);
         checkConnection.setText("PC 연결 상태 확인");
         checkConnection.setOnClickListener(view -> {
-            String key = controlKey.getText().toString().trim();
+            String key = controlApiKeyInput.getText().toString().trim();
             String url = serverUrl.getText().toString().trim();
             if (url.isEmpty() || key.isEmpty()) {
                 Toast.makeText(this, "서버 주소와 제어 API 키를 입력하세요.", Toast.LENGTH_LONG).show();
@@ -382,6 +393,215 @@ public final class MainActivity extends Activity {
         if (!savedCapture.isEmpty()) {
             codexCaptureStatusText.setText("이전 Codex capture session: " + savedCapture);
         }
+    }
+
+    private void buildChatGPTImportSection(
+            LinearLayout layout,
+            int padding,
+            EditText serverUrl
+    ) {
+        TextView heading = new TextView(this);
+        heading.setText("ChatGPT 실제 세션 가져오기");
+        heading.setTextSize(20);
+        heading.setPadding(0, padding * 2, 0, padding / 2);
+        layout.addView(heading);
+
+        TextView notice = new TextView(this);
+        notice.setText(
+                "ChatGPT 최근 세션 목록에는 직접 접근하지 않습니다. "
+                        + "계정 Data Export ZIP 또는 사용자가 만든 공개 Shared Link 1건을 "
+                        + "인증된 PC 수집기로 보내 원본을 먼저 보존합니다."
+        );
+        layout.addView(notice);
+
+        Button chooseExport = new Button(this);
+        chooseExport.setText("ChatGPT Data Export ZIP 선택");
+        chooseExport.setOnClickListener(view -> selectChatGPTExport());
+        layout.addView(chooseExport);
+
+        selectedChatGPTExportText = new TextView(this);
+        selectedChatGPTExportText.setText("선택한 Data Export ZIP이 없습니다.");
+        selectedChatGPTExportText.setPadding(0, padding / 2, 0, padding / 2);
+        layout.addView(selectedChatGPTExportText);
+
+        Button importExport = new Button(this);
+        importExport.setText("선택한 ZIP 가져오기");
+        importExport.setOnClickListener(
+                view -> importChatGPTExport(importExport, serverUrl)
+        );
+        layout.addView(importExport);
+
+        TextView alternative = new TextView(this);
+        alternative.setText("또는 공개 Shared Link 1건");
+        alternative.setTextSize(16);
+        alternative.setPadding(0, padding, 0, padding / 2);
+        layout.addView(alternative);
+
+        EditText sharedLink = new EditText(this);
+        sharedLink.setHint("https://chatgpt.com/share/...");
+        sharedLink.setSingleLine(true);
+        sharedLink.setInputType(
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI
+        );
+        layout.addView(sharedLink, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        Button importSharedLink = new Button(this);
+        importSharedLink.setText("공유 링크 가져오기");
+        importSharedLink.setOnClickListener(view -> importChatGPTSharedLink(
+                importSharedLink,
+                serverUrl,
+                sharedLink.getText().toString()
+        ));
+        layout.addView(importSharedLink);
+
+        chatgptImportStatusText = new TextView(this);
+        chatgptImportStatusText.setText("ChatGPT 가져오기 상태: 대기");
+        chatgptImportStatusText.setPadding(0, padding / 2, 0, padding / 2);
+        layout.addView(chatgptImportStatusText);
+    }
+
+    private void selectChatGPTExport() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/zip");
+        startActivityForResult(intent, REQUEST_CHATGPT_EXPORT);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_CHATGPT_EXPORT
+                || resultCode != RESULT_OK
+                || data == null
+                || data.getData() == null) {
+            return;
+        }
+        selectedChatGPTExportUri = data.getData();
+        try {
+            getContentResolver().takePersistableUriPermission(
+                    selectedChatGPTExportUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+            );
+        } catch (SecurityException ignored) {
+            // Some document providers grant access only for the current activity.
+        }
+        selectedChatGPTExportText.setText(
+                "선택한 ZIP: " + displayName(selectedChatGPTExportUri)
+        );
+        chatgptImportStatusText.setText("Data Export ZIP을 선택했습니다.");
+    }
+
+    private String displayName(Uri uri) {
+        try (Cursor cursor = getContentResolver().query(
+                uri,
+                new String[]{OpenableColumns.DISPLAY_NAME},
+                null,
+                null,
+                null
+        )) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int column = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (column >= 0) {
+                    String value = cursor.getString(column);
+                    if (value != null && !value.trim().isEmpty()) {
+                        return value;
+                    }
+                }
+            }
+        } catch (RuntimeException ignored) {
+            // A provider name is optional; the content URI remains the source.
+        }
+        return "chatgpt-export.zip";
+    }
+
+    private void importChatGPTExport(Button button, EditText serverUrl) {
+        if (selectedChatGPTExportUri == null) {
+            Toast.makeText(this, "먼저 Data Export ZIP을 선택하세요.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        String[] connection = chatgptConnection(serverUrl);
+        if (connection == null) {
+            return;
+        }
+        button.setEnabled(false);
+        chatgptImportStatusText.setText("Data Export 원본을 PC로 전송 중입니다…");
+        chatgptExecutor.execute(() -> {
+            try {
+                InputStream input = getContentResolver().openInputStream(
+                        selectedChatGPTExportUri
+                );
+                if (input == null) {
+                    throw new IOException("Selected export cannot be opened");
+                }
+                ChatGPTImportResult result = ApiClient.importChatGPTExport(
+                        connection[0], connection[1], input
+                );
+                finishChatGPTImport(button, result.label());
+            } catch (Exception error) {
+                finishChatGPTImport(
+                        button,
+                        "Data Export를 가져오지 못했습니다. PC 연결과 파일을 확인하세요."
+                );
+            }
+        });
+    }
+
+    private void importChatGPTSharedLink(
+            Button button,
+            EditText serverUrl,
+            String rawSharedLink
+    ) {
+        final String sharedLink;
+        try {
+            sharedLink = ChatGPTSharedLinkValidator.validate(rawSharedLink);
+        } catch (IllegalArgumentException error) {
+            Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show();
+            return;
+        }
+        String[] connection = chatgptConnection(serverUrl);
+        if (connection == null) {
+            return;
+        }
+        button.setEnabled(false);
+        chatgptImportStatusText.setText("공개 Shared Link snapshot을 가져오는 중입니다…");
+        chatgptExecutor.execute(() -> {
+            try {
+                ChatGPTImportResult result = ApiClient.importChatGPTSharedLink(
+                        connection[0], connection[1], sharedLink
+                );
+                finishChatGPTImport(button, result.label());
+            } catch (Exception error) {
+                finishChatGPTImport(
+                        button,
+                        "공유 링크를 가져오지 못했습니다. 공개 상태와 PC 연결을 확인하세요."
+                );
+            }
+        });
+    }
+
+    private String[] chatgptConnection(EditText serverUrl) {
+        String url = serverUrl.getText().toString().trim();
+        String key = controlApiKeyInput.getText().toString().trim();
+        if (url.isEmpty() || key.isEmpty()) {
+            Toast.makeText(
+                    this,
+                    "서버 주소와 모바일 제어 API 키를 먼저 입력하세요.",
+                    Toast.LENGTH_LONG
+            ).show();
+            return null;
+        }
+        captureDependencies.settings.setControlApiKey(key);
+        return new String[]{url, key};
+    }
+
+    private void finishChatGPTImport(Button button, String message) {
+        runOnUiThread(() -> {
+            button.setEnabled(true);
+            chatgptImportStatusText.setText(message);
+        });
     }
 
     private void loadCodexSessions(Button button) {
@@ -749,6 +969,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        chatgptExecutor.shutdownNow();
         codexExecutor.shutdownNow();
         executor.shutdownNow();
         super.onDestroy();

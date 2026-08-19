@@ -13,6 +13,25 @@
 7. 클립보드 저장이라면 상위 주제 문서를 검색해 필요할 때 선택합니다.
 8. 브라우저 등에서 공유 버튼을 누르고 `AutoKnowledge Lite`를 선택합니다.
 
+## ChatGPT 실제 세션 가져오기
+
+앱의 `ChatGPT 실제 세션 가져오기` 영역은 PC AutoKnowledge-Lite 서버의 수집 API를
+직접 사용합니다. Knowledge Viewer는 가져온 결과를 조회하는 용도입니다.
+
+- 권장: `ChatGPT Data Export ZIP 선택`에서 계정 export ZIP을 고른 뒤
+  `선택한 ZIP 가져오기`를 누릅니다.
+- 보조: 사용자가 만든 canonical
+  `https://chatgpt.com/share/<conversation-ID>`를 입력하고
+  `공유 링크 가져오기`를 누릅니다.
+
+두 방식 모두 위 Codex 영역의 `모바일 제어 API 키`를 사용합니다. Shared Link는 최근
+세션 목록이 아니라 공개 snapshot 1건만 가져옵니다. ZIP은 휴대폰에 별도 복제하지 않고
+Android ContentResolver에서 PC 서버로 streaming 전송합니다. 결과에는 발견, 신규,
+중복, 실패와 warning 건수만 표시합니다.
+
+PC 서버 주소는 Viewer의 `:8765`가 아니라 AutoKnowledge-Lite의 `:8000`이어야 합니다.
+서버 코드 갱신 후에는 실행 중인 uvicorn을 재시작해야 새 API route가 활성화됩니다.
+
 ## 클립보드로 전체 본문 저장
 
 공유 링크가 대화 일부만 포함하면 채팅이나 문서에서 전체 텍스트를 복사합니다. AutoKnowledge Lite 앱을 열고 저장 폴더를 선택한 뒤 `클립보드 내용 저장`을 누르면 전체 텍스트가 서버로 전송되고 AI 분석·Markdown·Obsidian 저장이 자동 실행됩니다.
@@ -63,7 +82,8 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 app\build\outputs\apk\debug\app-debug.apk
 ```
 
-상위 주제 검색·자동 연결 기능은 앱 버전 `0.2.2`부터 제공됩니다. 기존 앱이 설치되어 있으면 새 APK를 빌드한 뒤 휴대폰에 다시 설치해야 합니다.
+ChatGPT 실제 세션 가져오기는 앱 버전 `0.2.4`부터 제공됩니다. 기존 앱이 설치되어
+있으면 새 APK를 빌드한 뒤 휴대폰에 다시 설치해야 합니다.
 
 단위 테스트:
 

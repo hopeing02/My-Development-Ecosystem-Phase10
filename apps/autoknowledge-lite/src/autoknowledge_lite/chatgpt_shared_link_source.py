@@ -21,6 +21,7 @@ MAX_DECODE_DEPTH = 3
 MAX_TRAVERSED_VALUES = 100_000
 SHARE_PATH_PATTERN = re.compile(r"^/share/([A-Za-z0-9_-]{8,128})/?$")
 JSON_STRING_PATTERN = re.compile(r'"(?:[^"\\]|\\.)*"')
+COPIED_URL_IGNORABLES = str.maketrans("", "", "\u200b\u200c\u200d\u2060\ufeff")
 
 
 class ChatGPTSharedLinkSourceError(RuntimeError):
@@ -43,10 +44,10 @@ class ChatGPTSharedLinkSource:
         *,
         max_snapshot_bytes: int = DEFAULT_MAX_SNAPSHOT_BYTES,
     ) -> None:
-        self.shared_url = shared_url
+        self.shared_url = canonical_chatgpt_shared_url(shared_url)
         self.snapshot_path = snapshot_path.resolve()
         self.max_snapshot_bytes = max_snapshot_bytes
-        self.share_id = chatgpt_share_id(shared_url)
+        self.share_id = chatgpt_share_id(self.shared_url)
 
     def discover_sessions(self) -> ChatGPTSourceDiscovery:
         records = self._records()
@@ -233,9 +234,19 @@ class ChatGPTSharedLinkSource:
 
 
 def chatgpt_share_id(url: str) -> str:
-    """Validate a canonical public ChatGPT shared-link URL and return its source id."""
+    """Validate a public ChatGPT shared-link URL and return its source id."""
 
-    parsed = urlsplit(url)
+    canonical_url = canonical_chatgpt_shared_url(url)
+    match = SHARE_PATH_PATTERN.fullmatch(urlsplit(canonical_url).path)
+    assert match is not None
+    return match.group(1)
+
+
+def canonical_chatgpt_shared_url(url: str) -> str:
+    """Normalize safe copy artifacts without weakening share-host validation."""
+
+    value = url.translate(COPIED_URL_IGNORABLES).strip()
+    parsed = urlsplit(value)
     try:
         port = parsed.port
     except ValueError as error:
@@ -249,12 +260,10 @@ def chatgpt_share_id(url: str) -> str:
         or port not in {None, 443}
         or parsed.username is not None
         or parsed.password is not None
-        or parsed.query
-        or parsed.fragment
     ):
         raise ChatGPTSharedLinkSourceError(
             "CHATGPT_SHARED_URL_INVALID",
-            "Shared link must be an HTTPS chatgpt.com URL without credentials or parameters",
+            "Shared link must be an HTTPS chatgpt.com URL without credentials",
         )
     match = SHARE_PATH_PATTERN.fullmatch(parsed.path)
     if not match:
@@ -262,4 +271,4 @@ def chatgpt_share_id(url: str) -> str:
             "CHATGPT_SHARED_URL_INVALID",
             "Shared link must use /share/<conversation-ID>",
         )
-    return match.group(1)
+    return f"https://chatgpt.com/share/{match.group(1)}"

@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from autoknowledge_lite.chatgpt_shared_link_source import (
     DEFAULT_MAX_SNAPSHOT_BYTES,
     ChatGPTSharedLinkSourceError,
+    canonical_chatgpt_shared_url,
     chatgpt_share_id,
 )
 
@@ -65,9 +66,11 @@ class ChatGPTSharedSnapshotFetcher:
         self.max_snapshot_bytes = max_snapshot_bytes
 
     def fetch(self, shared_url: str) -> ChatGPTSharedSnapshot:
-        share_id = self._validated_id(shared_url)
-        current_url = shared_url
+        canonical_url = self._canonical_url(shared_url)
+        share_id = self._validated_id(canonical_url)
+        current_url = canonical_url
         for _ in range(MAX_REDIRECTS + 1):
+            current_url = self._canonical_url(current_url)
             if self._validated_id(current_url) != share_id:
                 raise ChatGPTSharedFetchError(
                     "CHATGPT_SHARED_REDIRECT_REJECTED",
@@ -87,7 +90,7 @@ class ChatGPTSharedSnapshotFetcher:
                     "ChatGPT shared link could not be retrieved",
                 ) from error
             return ChatGPTSharedSnapshot(
-                shared_url=shared_url,
+                shared_url=canonical_url,
                 share_id=share_id,
                 content=content,
                 content_type=content_type,
@@ -145,6 +148,13 @@ class ChatGPTSharedSnapshotFetcher:
     def _validated_id(url: str) -> str:
         try:
             return chatgpt_share_id(url)
+        except ChatGPTSharedLinkSourceError as error:
+            raise ChatGPTSharedFetchError(error.code, str(error)) from error
+
+    @staticmethod
+    def _canonical_url(url: str) -> str:
+        try:
+            return canonical_chatgpt_shared_url(url)
         except ChatGPTSharedLinkSourceError as error:
             raise ChatGPTSharedFetchError(error.code, str(error)) from error
 
