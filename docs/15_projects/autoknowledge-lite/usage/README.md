@@ -22,3 +22,8 @@
 - `GUIDE-003-android-apk-download.md`: 휴대폰에서 v0.2.0 APK 직접 다운로드와 설치
 - `GUIDE-004-pc-capture-page.md`: PC 클립보드·직접 입력과 Vault 폴더 선택 저장
 - `GUIDE-005-obsidian-knowledge-graph.md`: 외부 Vault, MOC, Graph와 Bases 사용법
+- `GUIDE-005-android-codex-session-capture.md`: 모바일에서 실제 Codex Session 조회·수집
+- `GUIDE-006-windows-codex-collector.md`: Windows Codex Session 수집기 운영
+- `GUIDE-007-chatgpt-export-import.md`: ChatGPT Data Export ZIP 가져오기
+- `GUIDE-008-chatgpt-session-acquisition.md`: ChatGPT 실제 Session 확보 방식
+- `GUIDE-009-mobile-rc-acceptance.md`: 두 Android 앱의 비파괴 RC 설치·승인

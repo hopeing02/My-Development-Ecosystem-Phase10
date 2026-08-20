@@ -22,3 +22,5 @@
 - `TEST-004-pc-capture-page.md`: PC 화면·고정 폴더·기존 저장 API 연결 검증
 - `TEST-005-obsidian-knowledge-graph.md`: 기존 원문 보존과 자동 그래프 구성 검증
 - `TEST-006-android-clipboard-auto-capture.md`: 자동 감지 파이프라인·메타데이터·Android 빌드 검증
+- `TEST-033-step10-full-regression.md`: 전체 Python·Viewer·Android·APK 회귀 검증
+- `TEST-034-mobile-release-candidate.md`: 모바일 RC 메타데이터·배포 준비와 물리 기기 승인 상태
