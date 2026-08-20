@@ -4,10 +4,12 @@ import {
   getChatGPTMessages,
   getChatGPTSession,
   getChatGPTTask,
+  getChatGPTTimeline,
   importChatGPTExport,
   importChatGPTSharedLink,
   listChatGPTSessions,
   listChatGPTTasks,
+  searchChatGPT,
 } from "./api";
 
 describe("ChatGPT import API", () => {
@@ -135,6 +137,27 @@ describe("ChatGPT import API", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       5,
       "/api/v1/chatgpt/tasks/task%3Asession-1%3A0001",
+      { headers: { Accept: "application/json" } },
+    );
+  });
+
+  it("queries structured ChatGPT search and timeline as read-only data", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], total: 0, limit: 100 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], total: 0, limit: 500, truncated: false, omittedWithoutTimestamp: 0 }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await searchChatGPT("viewer result", "ACTIVITY");
+    await getChatGPTTimeline("session-1");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/chatgpt/search?q=viewer+result&limit=100&entityType=ACTIVITY",
+      { headers: { Accept: "application/json" } },
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/chatgpt/timeline?limit=500&sessionId=session-1",
       { headers: { Accept: "application/json" } },
     );
   });

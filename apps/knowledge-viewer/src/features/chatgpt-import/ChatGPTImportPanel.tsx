@@ -8,19 +8,23 @@ import {
   getChatGPTMessages,
   getChatGPTSession,
   getChatGPTTask,
+  getChatGPTTimeline,
   importChatGPTExport,
   importChatGPTSharedLink,
   listChatGPTSessions,
   listChatGPTTasks,
+  searchChatGPT,
 } from "./api";
 import type {
   ChatGPTActivity,
   ChatGPTImportResult,
   ChatGPTMessage,
+  ChatGPTSearchResult,
   ChatGPTSessionDetail,
   ChatGPTSessionSummary,
   ChatGPTTaskDetail,
   ChatGPTTaskSummary,
+  ChatGPTTimelineResponse,
 } from "./types";
 
 const STATUS_LABELS = {
@@ -29,10 +33,12 @@ const STATUS_LABELS = {
   duplicate: "이미 가져온 export",
 } as const;
 
-export function ChatGPTImportPanel() {
-  const [mode, setMode] = useState<"sessions" | "import">("sessions");
+export function ChatGPTImportPanel({ initialSessionId, initialTaskId, initialMessageId }: { initialSessionId?: string; initialTaskId?: string | null; initialMessageId?: string | null } = {}) {
+  const [mode, setMode] = useState<"sessions" | "timeline" | "import">("sessions");
   const [query, setQuery] = useState("");
   const [sessions, setSessions] = useState<ChatGPTSessionSummary[]>([]);
+  const [searchResults, setSearchResults] = useState<ChatGPTSearchResult[]>([]);
+  const [timeline, setTimeline] = useState<ChatGPTTimelineResponse | null>(null);
   const [selectedId, setSelectedId] = useState<string>();
   const [detail, setDetail] = useState<ChatGPTSessionDetail | null>(null);
   const [messages, setMessages] = useState<ChatGPTMessage[]>([]);
@@ -112,9 +118,44 @@ export function ChatGPTImportPanel() {
     }
   }, []);
 
+  const openRelatedEntity = useCallback(async (
+    sessionId: string,
+    taskId?: string | null,
+    messageId?: string | null,
+  ) => {
+    setMode("sessions");
+    setGraphMode(false);
+    await openSession(sessionId, taskId ?? undefined);
+    if (messageId) {
+      window.setTimeout(() => focusOriginalMessage(messageId), 0);
+    }
+  }, [openSession]);
+
+  const runSearch = useCallback(async () => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setSearchResults([]);
+      await loadSessions("");
+      return;
+    }
+    setError("");
+    try {
+      const result = await searchChatGPT(trimmed);
+      setSearchResults(result.items);
+      await loadSessions(trimmed);
+    } catch (caught) {
+      setError(queryError(caught));
+    }
+  }, [loadSessions, query]);
+
   useEffect(() => {
     void loadSessions("");
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!initialSessionId) return;
+    void openRelatedEntity(initialSessionId, initialTaskId, initialMessageId);
+  }, [initialMessageId, initialSessionId, initialTaskId, openRelatedEntity]);
 
   useEffect(() => {
     if (!selectedId && sessions[0]) void openSession(sessions[0].sessionId);
@@ -128,6 +169,14 @@ export function ChatGPTImportPanel() {
       .catch((caught) => setError(queryError(caught)));
   }, [graphMode, selectedId]);
 
+  useEffect(() => {
+    if (mode !== "timeline") return;
+    setError("");
+    void getChatGPTTimeline()
+      .then(setTimeline)
+      .catch((caught) => setError(queryError(caught)));
+  }, [mode]);
+
   return (
     <section className="chatgpt-workspace" aria-labelledby="chatgpt-title">
       <div className="chatgpt-heading">
@@ -137,19 +186,25 @@ export function ChatGPTImportPanel() {
         </div>
         <div className="chatgpt-mode" role="tablist" aria-label="ChatGPT 화면">
           <button className={mode === "sessions" ? "active" : ""} onClick={() => setMode("sessions")}>세션 보기</button>
+          <button className={mode === "timeline" ? "active" : ""} onClick={() => setMode("timeline")}>Timeline</button>
           <button className={mode === "import" ? "active" : ""} onClick={() => setMode("import")}>가져오기</button>
         </div>
       </div>
       {error && <div className="error" role="alert">{error}</div>}
       {mode === "import" ? (
         <ImportForms onImported={() => void loadSessions("")} />
+      ) : mode === "timeline" ? (
+        <TimelinePanel timeline={timeline} onOpen={openRelatedEntity} />
       ) : (
         <div className="chatgpt-session-layout">
           <aside className="chatgpt-session-sidebar">
-            <form onSubmit={(event) => { event.preventDefault(); void loadSessions(); }}>
-              <label>세션 검색<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="제목 또는 대화 내용" /></label>
+            <form onSubmit={(event) => { event.preventDefault(); void runSearch(); }}>
+              <label>통합 검색<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Session, Message, Task, Activity" /></label>
               <button type="submit">검색</button>
             </form>
+            {searchResults.length > 0 && (
+              <SearchResults items={searchResults} onOpen={openRelatedEntity} />
+            )}
             <button className={graphMode ? "active" : ""} onClick={() => setGraphMode((value) => !value)}>{graphMode ? "목록 보기" : "그래프 보기"}</button>
             <h3>저장된 세션 {sessions.length}개</h3>
             {loading && <p className="muted">불러오는 중…</p>}
@@ -180,6 +235,48 @@ export function ChatGPTImportPanel() {
           </main>
         </div>
       )}
+    </section>
+  );
+}
+
+function SearchResults({ items, onOpen }: { items: ChatGPTSearchResult[]; onOpen: (sessionId: string, taskId?: string | null, messageId?: string | null) => Promise<void> }) {
+  return (
+    <section className="chatgpt-related-results" aria-label="ChatGPT 관계 검색 결과">
+      <h3>관계 검색 결과 {items.length}개</h3>
+      {items.map((item) => (
+        <button key={`${item.entityType}:${item.entityId}`} onClick={() => void onOpen(item.sessionId, item.taskId, item.messageId)}>
+          <span className={`entity-type type-${item.entityType.toLowerCase()}`}>{entityTypeLabel(item.entityType)}</span>
+          <strong>{item.title}</strong>
+          <small>{relationPath(item)}</small>
+          <span>{item.snippet}</span>
+        </button>
+      ))}
+    </section>
+  );
+}
+
+function TimelinePanel({ timeline, onOpen }: { timeline: ChatGPTTimelineResponse | null; onOpen: (sessionId: string, taskId?: string | null, messageId?: string | null) => Promise<void> }) {
+  if (!timeline) return <p className="muted">Timeline을 불러오는 중…</p>;
+  return (
+    <section className="chatgpt-timeline" aria-labelledby="chatgpt-timeline-title">
+      <div className="chatgpt-task-heading">
+        <h3 id="chatgpt-timeline-title">ChatGPT Timeline {timeline.total}개</h3>
+        <span>실제 timestamp만 표시</span>
+      </div>
+      {timeline.omittedWithoutTimestamp > 0 && <p className="warning">timestamp가 없어 제외한 항목 {timeline.omittedWithoutTimestamp}개</p>}
+      {timeline.truncated && <p className="warning">최근 조회 한도를 초과하여 일부 항목만 표시합니다.</p>}
+      <ol>
+        {timeline.items.map((item) => (
+          <li key={`${item.entityType}:${item.entityId}`}>
+            <time dateTime={item.timestamp}>{new Date(item.timestamp).toLocaleString()}</time>
+            <button onClick={() => void onOpen(item.sessionId, item.taskId, item.messageId)}>
+              <span className={`entity-type type-${item.entityType.toLowerCase()}`}>{entityTypeLabel(item.entityType)}</span>
+              <strong>{item.title}</strong>
+              <small>{item.sessionTitle} · source={item.provenance.source}</small>
+            </button>
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }
@@ -338,6 +435,22 @@ function queryError(caught: unknown): string {
   return caught instanceof ChatGPTImportApiError
     ? `${caught.message} (${caught.code})`
     : "ChatGPT 자료를 불러오지 못했습니다.";
+}
+
+function entityTypeLabel(type: ChatGPTSearchResult["entityType"]): string {
+  return ({
+    SESSION: "Session",
+    MESSAGE: "Message",
+    TASK: "Task",
+    ACTIVITY: "Activity",
+  })[type];
+}
+
+function relationPath(item: ChatGPTSearchResult): string {
+  const parts = [item.sessionTitle];
+  if (item.taskId) parts.push("Task");
+  if (item.messageId) parts.push("원본 Message");
+  return parts.join(" → ");
 }
 
 function taskStatusLabel(status: ChatGPTTaskSummary["status"]): string {

@@ -12,6 +12,8 @@ const api = vi.hoisted(() => ({
   listChatGPTTasks: vi.fn(),
   getChatGPTTask: vi.fn(),
   getChatGPTGraph: vi.fn(),
+  searchChatGPT: vi.fn(),
+  getChatGPTTimeline: vi.fn(),
 }));
 
 vi.mock("./api", async (importOriginal) => ({
@@ -24,6 +26,8 @@ vi.mock("./api", async (importOriginal) => ({
   listChatGPTTasks: api.listChatGPTTasks,
   getChatGPTTask: api.getChatGPTTask,
   getChatGPTGraph: api.getChatGPTGraph,
+  searchChatGPT: api.searchChatGPT,
+  getChatGPTTimeline: api.getChatGPTTimeline,
 }));
 
 describe("ChatGPTImportPanel", () => {
@@ -112,6 +116,32 @@ describe("ChatGPTImportPanel", () => {
       analysisWarnings: [],
     });
     api.getChatGPTGraph.mockResolvedValue({ nodes: [], edges: [], truncated: false, limit: 300, depth: 1 });
+    api.searchChatGPT.mockResolvedValue({
+      items: [{
+        entityType: "ACTIVITY",
+        entityId: "activity-search",
+        title: "Viewer result",
+        snippet: "Viewer search result",
+        timestamp: "2026-08-19T00:10:00Z",
+        sessionId: "session-1",
+        sessionTitle: "Shared design",
+        taskId: task.taskId,
+        messageId: "message-2",
+        provenance: { source: "derived", derivedBy: "rule", confidence: 1, sourceRefs: [] },
+      }],
+      total: 1,
+      limit: 100,
+    });
+    api.getChatGPTTimeline.mockResolvedValue({
+      items: [
+        { entityType: "SESSION", entityId: "session-1", title: "Shared design", timestamp: "2026-08-19T00:00:00Z", sessionId: "session-1", sessionTitle: "Shared design", provenance: { source: "original", sourceRefs: [] } },
+        { entityType: "ACTIVITY", entityId: "activity-timeline", title: "Timeline activity", timestamp: "2026-08-19T00:10:00Z", sessionId: "session-1", sessionTitle: "Shared design", taskId: task.taskId, messageId: "message-2", provenance: { source: "derived", derivedBy: "rule", confidence: 1, sourceRefs: [] } },
+      ],
+      total: 2,
+      limit: 500,
+      truncated: false,
+      omittedWithoutTimestamp: 0,
+    });
   });
 
   it("lists stored sessions and shows original messages by default", async () => {
@@ -184,5 +214,22 @@ describe("ChatGPTImportPanel", () => {
 
     expect(scrollIntoView).toHaveBeenCalled();
     expect(document.getElementById("chatgpt-message-message-1")).toHaveClass("source-highlight");
+  });
+
+  it("shows relation-aware search results and a timestamp-only timeline", async () => {
+    render(<ChatGPTImportPanel />);
+    await screen.findByText("Shared design");
+
+    fireEvent.change(screen.getByLabelText("통합 검색"), { target: { value: "viewer" } });
+    fireEvent.click(screen.getByRole("button", { name: "검색" }));
+
+    expect(await screen.findByText("Viewer result")).toBeInTheDocument();
+    expect(screen.getByText("Shared design → Task → 원본 Message")).toBeInTheDocument();
+    expect(api.searchChatGPT).toHaveBeenCalledWith("viewer");
+
+    fireEvent.click(screen.getByRole("button", { name: "Timeline" }));
+    expect(await screen.findByText("ChatGPT Timeline 2개")).toBeInTheDocument();
+    expect(screen.getByText("Timeline activity")).toBeInTheDocument();
+    expect(screen.getByText("실제 timestamp만 표시")).toBeInTheDocument();
   });
 });

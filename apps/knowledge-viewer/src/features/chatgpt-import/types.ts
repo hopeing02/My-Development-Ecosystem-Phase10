@@ -104,3 +104,44 @@ export interface ChatGPTPage<T> {
   hasMore: boolean;
   total: number;
 }
+
+export type ChatGPTEntityType = "SESSION" | "MESSAGE" | "TASK" | "ACTIVITY";
+
+export interface ChatGPTSearchResult {
+  entityType: ChatGPTEntityType;
+  entityId: string;
+  title: string;
+  snippet: string;
+  timestamp?: string | null;
+  sessionId: string;
+  sessionTitle: string;
+  taskId?: string | null;
+  messageId?: string | null;
+  provenance: ChatGPTProvenance;
+}
+
+export interface ChatGPTSearchResponse {
+  items: ChatGPTSearchResult[];
+  total: number;
+  limit: number;
+}
+
+export interface ChatGPTTimelineEntry {
+  entityType: ChatGPTEntityType;
+  entityId: string;
+  title: string;
+  timestamp: string;
+  sessionId: string;
+  sessionTitle: string;
+  taskId?: string | null;
+  messageId?: string | null;
+  provenance: ChatGPTProvenance;
+}
+
+export interface ChatGPTTimelineResponse {
+  items: ChatGPTTimelineEntry[];
+  total: number;
+  limit: number;
+  truncated: boolean;
+  omittedWithoutTimestamp: number;
+}

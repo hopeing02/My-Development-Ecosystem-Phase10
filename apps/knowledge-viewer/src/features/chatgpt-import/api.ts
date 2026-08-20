@@ -5,8 +5,10 @@ import type {
   ChatGPTPage,
   ChatGPTSessionDetail,
   ChatGPTSessionSummary,
+  ChatGPTSearchResponse,
   ChatGPTTaskDetail,
   ChatGPTTaskSummary,
+  ChatGPTTimelineResponse,
 } from "./types";
 
 export class ChatGPTImportApiError extends Error {
@@ -93,6 +95,21 @@ export function listChatGPTTasks(
 
 export function getChatGPTTask(taskId: string): Promise<ChatGPTTaskDetail> {
   return requestQuery(`/api/v1/chatgpt/tasks/${encodeURIComponent(taskId)}`);
+}
+
+export function searchChatGPT(
+  query: string,
+  entityType?: string,
+): Promise<ChatGPTSearchResponse> {
+  const parameters = new URLSearchParams({ q: query.trim(), limit: "100" });
+  if (entityType) parameters.set("entityType", entityType);
+  return requestQuery(`/api/v1/chatgpt/search?${parameters}`);
+}
+
+export function getChatGPTTimeline(sessionId?: string): Promise<ChatGPTTimelineResponse> {
+  const parameters = new URLSearchParams({ limit: "500" });
+  if (sessionId) parameters.set("sessionId", sessionId);
+  return requestQuery(`/api/v1/chatgpt/timeline?${parameters}`);
 }
 
 export function getChatGPTGraph(sessionId?: string): Promise<CaptureGraphData> {

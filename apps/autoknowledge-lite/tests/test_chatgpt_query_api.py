@@ -205,6 +205,53 @@ def test_returns_session_message_knowledge_graph(tmp_path: Path) -> None:
     assert all("content" not in item["metadata"] for item in graph["nodes"])
 
 
+def test_searches_messages_tasks_and_activities_with_relation_context(
+    tmp_path: Path,
+) -> None:
+    client = api(tmp_path)
+
+    messages = client.get("/api/v1/chatgpt/search", params={"q": "visible"})
+    tasks = client.get(
+        "/api/v1/chatgpt/search",
+        params={"q": "Show this session", "entityType": "task"},
+    )
+
+    assert messages.status_code == 200
+    message = messages.json()["items"][0]
+    assert message["entityType"] == "MESSAGE"
+    assert message["sessionId"] == "session-1"
+    assert message["sessionTitle"] == "Viewer shared design"
+    assert message["provenance"]["source"] == "original"
+    assert tasks.status_code == 200
+    assert tasks.json()["total"] == 1
+    assert tasks.json()["items"][0]["entityType"] == "TASK"
+    assert tasks.json()["items"][0]["taskId"].startswith("task:session-1:")
+    assert tasks.json()["items"][0]["provenance"]["source"] == "derived"
+
+
+def test_returns_timestamped_timeline_without_inventing_missing_times(
+    tmp_path: Path,
+) -> None:
+    response = api(tmp_path).get(
+        "/api/v1/chatgpt/timeline", params={"sessionId": "session-1"}
+    )
+
+    assert response.status_code == 200
+    timeline = response.json()
+    assert timeline["total"] == 6
+    assert timeline["omittedWithoutTimestamp"] == 0
+    assert [item["entityType"] for item in timeline["items"]] == [
+        "SESSION",
+        "MESSAGE",
+        "TASK",
+        "ACTIVITY",
+        "MESSAGE",
+        "ACTIVITY",
+    ]
+    assert all(item["timestamp"] for item in timeline["items"])
+    assert timeline["items"][0]["provenance"]["source"] == "original"
+
+
 def test_missing_session_and_invalid_cursor_are_safe_errors(tmp_path: Path) -> None:
     client = api(tmp_path)
 

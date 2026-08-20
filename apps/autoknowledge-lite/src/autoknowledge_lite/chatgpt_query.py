@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,7 @@ from autoknowledge_lite.task_analyzer import (
 DEFAULT_PAGE_SIZE = 30
 MAX_PAGE_SIZE = 100
 MAX_GRAPH_NODES = 300
+MAX_TIMELINE_ITEMS = 500
 
 
 class ChatGPTQueryError(RuntimeError):
@@ -163,6 +165,253 @@ class ChatGPTQueryService:
             ),
             "hasMore": next_offset < len(values),
             "total": len(values),
+        }
+
+    def search(
+        self,
+        query: str,
+        *,
+        entity_type: str | None = None,
+        limit: int = DEFAULT_PAGE_SIZE,
+    ) -> dict[str, Any]:
+        needle = query.strip().casefold()
+        if not needle:
+            raise ChatGPTQueryError("CHATGPT_QUERY_INVALID", "Search query is required")
+        requested_type = entity_type.upper() if entity_type else None
+        allowed_types = {"SESSION", "MESSAGE", "TASK", "ACTIVITY"}
+        if requested_type and requested_type not in allowed_types:
+            raise ChatGPTQueryError(
+                "CHATGPT_ENTITY_TYPE_INVALID", "Unsupported ChatGPT entity type"
+            )
+
+        matches: list[tuple[float, int, dict[str, Any]]] = []
+        order = 0
+        for revision in self._latest_revisions():
+            session = revision.projection.session
+            analysis = self._analysis(revision)
+            if (
+                requested_type in {None, "SESSION"}
+                and needle in session.title.casefold()
+            ):
+                matches.append(
+                    (
+                        session.updated_at.timestamp(),
+                        order,
+                        _search_result(
+                            entity_type="SESSION",
+                            entity_id=session.session_id,
+                            title=session.title,
+                            snippet=session.title,
+                            timestamp=session.updated_at,
+                            session_id=session.session_id,
+                            session_title=session.title,
+                            provenance=session.provenance,
+                        ),
+                    )
+                )
+                order += 1
+            if requested_type in {None, "MESSAGE"}:
+                for message in revision.projection.messages:
+                    if needle not in message.content.casefold():
+                        continue
+                    matches.append(
+                        (
+                            _timestamp_value(message.timestamp),
+                            order,
+                            _search_result(
+                                entity_type="MESSAGE",
+                                entity_id=message.message_id,
+                                title=f"{message.role.value} #{message.sequence}",
+                                snippet=_snippet(message.content, needle),
+                                timestamp=message.timestamp,
+                                session_id=session.session_id,
+                                session_title=session.title,
+                                message_id=message.message_id,
+                                provenance=message.provenance,
+                            ),
+                        )
+                    )
+                    order += 1
+            if requested_type in {None, "TASK"}:
+                for task in analysis.tasks:
+                    searchable = " ".join(
+                        item for item in (task.title, task.summary) if item
+                    )
+                    if needle not in searchable.casefold():
+                        continue
+                    matches.append(
+                        (
+                            _timestamp_value(task.started_at),
+                            order,
+                            _search_result(
+                                entity_type="TASK",
+                                entity_id=task.task_id,
+                                title=task.title,
+                                snippet=_snippet(searchable, needle),
+                                timestamp=task.started_at,
+                                session_id=session.session_id,
+                                session_title=session.title,
+                                task_id=task.task_id,
+                                provenance=task.provenance,
+                            ),
+                        )
+                    )
+                    order += 1
+            if requested_type in {None, "ACTIVITY"}:
+                for activity in analysis.activities:
+                    searchable = " ".join(
+                        item
+                        for item in (activity.activity_type.value, activity.summary)
+                        if item
+                    )
+                    if needle not in searchable.casefold():
+                        continue
+                    matches.append(
+                        (
+                            _timestamp_value(activity.timestamp),
+                            order,
+                            _search_result(
+                                entity_type="ACTIVITY",
+                                entity_id=activity.activity_id,
+                                title=(
+                                    f"{activity.activity_type.value} "
+                                    f"#{activity.sequence}"
+                                ),
+                                snippet=_snippet(searchable, needle),
+                                timestamp=activity.timestamp,
+                                session_id=session.session_id,
+                                session_title=session.title,
+                                task_id=activity.task_id,
+                                message_id=(
+                                    activity.entity_refs[0]
+                                    if activity.entity_refs
+                                    else None
+                                ),
+                                provenance=activity.provenance,
+                            ),
+                        )
+                    )
+                    order += 1
+        matches.sort(key=lambda item: (-item[0], item[1]))
+        return {
+            "items": [item[2] for item in matches[:limit]],
+            "total": len(matches),
+            "limit": limit,
+        }
+
+    def timeline(
+        self,
+        *,
+        session_id: str | None = None,
+        limit: int = MAX_PAGE_SIZE,
+    ) -> dict[str, Any]:
+        revisions = (
+            (self._latest(session_id),)
+            if session_id is not None
+            else self._latest_revisions()
+        )
+        entries: list[tuple[float, int, dict[str, Any]]] = []
+        omitted = 0
+        order = 0
+        for revision in revisions:
+            session = revision.projection.session
+            analysis = self._analysis(revision)
+            entries.append(
+                (
+                    session.created_at.timestamp(),
+                    order,
+                    _timeline_entry(
+                        entity_type="SESSION",
+                        entity_id=session.session_id,
+                        title=session.title,
+                        timestamp=session.created_at,
+                        session_id=session.session_id,
+                        session_title=session.title,
+                        provenance=session.provenance,
+                    ),
+                )
+            )
+            order += 1
+            for message in revision.projection.messages:
+                if message.timestamp is None:
+                    omitted += 1
+                    continue
+                entries.append(
+                    (
+                        message.timestamp.timestamp(),
+                        order,
+                        _timeline_entry(
+                            entity_type="MESSAGE",
+                            entity_id=message.message_id,
+                            title=f"{message.role.value} #{message.sequence}",
+                            timestamp=message.timestamp,
+                            session_id=session.session_id,
+                            session_title=session.title,
+                            message_id=message.message_id,
+                            provenance=message.provenance,
+                        ),
+                    )
+                )
+                order += 1
+            for task in analysis.tasks:
+                if task.started_at is None:
+                    omitted += 1
+                    continue
+                entries.append(
+                    (
+                        task.started_at.timestamp(),
+                        order,
+                        _timeline_entry(
+                            entity_type="TASK",
+                            entity_id=task.task_id,
+                            title=task.title,
+                            timestamp=task.started_at,
+                            session_id=session.session_id,
+                            session_title=session.title,
+                            task_id=task.task_id,
+                            provenance=task.provenance,
+                        ),
+                    )
+                )
+                order += 1
+            for activity in analysis.activities:
+                if activity.timestamp is None:
+                    omitted += 1
+                    continue
+                entries.append(
+                    (
+                        activity.timestamp.timestamp(),
+                        order,
+                        _timeline_entry(
+                            entity_type="ACTIVITY",
+                            entity_id=activity.activity_id,
+                            title=(
+                                activity.summary
+                                or f"{activity.activity_type.value} "
+                                f"#{activity.sequence}"
+                            ),
+                            timestamp=activity.timestamp,
+                            session_id=session.session_id,
+                            session_title=session.title,
+                            task_id=activity.task_id,
+                            message_id=(
+                                activity.entity_refs[0]
+                                if activity.entity_refs
+                                else None
+                            ),
+                            provenance=activity.provenance,
+                        ),
+                    )
+                )
+                order += 1
+        entries.sort(key=lambda item: (item[0], item[1]))
+        truncated = len(entries) > limit
+        return {
+            "items": [item[2] for item in entries[:limit]],
+            "total": len(entries),
+            "limit": limit,
+            "truncated": truncated,
+            "omittedWithoutTimestamp": omitted,
         }
 
     def graph(
@@ -408,6 +657,27 @@ def install_chatgpt_query_api(
         except ChatGPTQueryError as error:
             return failure(error)
 
+    @application.get("/api/v1/chatgpt/search", response_model=None)
+    def search(
+        q: str = Query(..., min_length=1, max_length=200),
+        entity_type: str | None = Query(None, alias="entityType"),
+        limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+    ) -> dict[str, Any] | JSONResponse:
+        try:
+            return service.search(q, entity_type=entity_type, limit=limit)
+        except ChatGPTQueryError as error:
+            return failure(error)
+
+    @application.get("/api/v1/chatgpt/timeline", response_model=None)
+    def timeline(
+        session_id: str | None = Query(None, alias="sessionId"),
+        limit: int = Query(MAX_PAGE_SIZE, ge=1, le=MAX_TIMELINE_ITEMS),
+    ) -> dict[str, Any] | JSONResponse:
+        try:
+            return service.timeline(session_id=session_id, limit=limit)
+        except ChatGPTQueryError as error:
+            return failure(error)
+
     @application.get("/api/v1/chatgpt/graph", response_model=None)
     def graph(
         session_id: str | None = Query(None, alias="sessionId"),
@@ -471,6 +741,73 @@ def _boundary_candidate(value: TaskBoundaryCandidate) -> dict[str, Any]:
         "reasons": list(value.reasons),
         "provenance": _provenance(value.provenance),
     }
+
+
+def _search_result(
+    *,
+    entity_type: str,
+    entity_id: str,
+    title: str,
+    snippet: str,
+    timestamp: datetime | None,
+    session_id: str,
+    session_title: str,
+    provenance: Provenance,
+    task_id: str | None = None,
+    message_id: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "entityType": entity_type,
+        "entityId": entity_id,
+        "title": title,
+        "snippet": snippet,
+        "timestamp": timestamp.isoformat() if timestamp else None,
+        "sessionId": session_id,
+        "sessionTitle": session_title,
+        "taskId": task_id,
+        "messageId": message_id,
+        "provenance": _provenance(provenance),
+    }
+
+
+def _timeline_entry(
+    *,
+    entity_type: str,
+    entity_id: str,
+    title: str,
+    timestamp: datetime,
+    session_id: str,
+    session_title: str,
+    provenance: Provenance,
+    task_id: str | None = None,
+    message_id: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "entityType": entity_type,
+        "entityId": entity_id,
+        "title": title,
+        "timestamp": timestamp.isoformat(),
+        "sessionId": session_id,
+        "sessionTitle": session_title,
+        "taskId": task_id,
+        "messageId": message_id,
+        "provenance": _provenance(provenance),
+    }
+
+
+def _snippet(value: str, needle: str, max_length: int = 160) -> str:
+    compact = " ".join(value.split())
+    if len(compact) <= max_length:
+        return compact
+    start = max(0, compact.casefold().find(needle) - max_length // 3)
+    end = min(len(compact), start + max_length)
+    prefix = "…" if start else ""
+    suffix = "…" if end < len(compact) else ""
+    return f"{prefix}{compact[start:end]}{suffix}"
+
+
+def _timestamp_value(value: datetime | None) -> float:
+    return value.timestamp() if value else float("-inf")
 
 
 def _provenance(value: Provenance) -> dict[str, Any]:
