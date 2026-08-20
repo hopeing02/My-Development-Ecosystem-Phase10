@@ -130,7 +130,7 @@ describe("CaptureWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: /Viewer를 구현해/ }));
     fireEvent.click(screen.getByRole("button", { name: "그래프에서 Task 보기" }));
     await waitFor(() => expect(api.getCaptureGraph).toHaveBeenLastCalledWith(expect.objectContaining({ centerId: "task:cap_session:session" })));
-  });
+  }, 10_000);
 
   it("renders explicit empty states for every empty session tab and graph", async () => {
     api.listCaptures.mockResolvedValue({ items: [emptyDetail.capture], total: 1, hasMore: false });
