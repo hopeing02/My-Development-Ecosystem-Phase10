@@ -47,8 +47,13 @@ def conversation(content: str = "Original request") -> dict[str, object]:
     }
 
 
-def snapshot_html(content: str = "Original request") -> bytes:
-    embedded = json.dumps({"conversation": conversation(content)})
+def snapshot_html(
+    content: str = "Original request", *, request_id: str | None = None
+) -> bytes:
+    source = conversation(content)
+    if request_id is not None:
+        source["request_id"] = request_id
+    embedded = json.dumps({"conversation": source})
     return f"<script>self.__next_f.push([1,{json.dumps(embedded)}])</script>".encode()
 
 
@@ -78,6 +83,31 @@ def test_deduplicates_same_snapshot_and_projection(tmp_path: Path) -> None:
     assert second.projected_sessions == 0
     assert second.duplicate_sessions == 1
     assert second.revisions[0].revision == 1
+
+
+def test_deduplicates_volatile_snapshot_with_identical_projection(
+    tmp_path: Path,
+) -> None:
+    first = ChatGPTSharedImportService(
+        tmp_path,
+        fetcher=FakeFetcher(snapshot_html(request_id="request-1")),
+    ).import_shared_link(SHARE_URL)
+    second = ChatGPTSharedImportService(
+        tmp_path,
+        fetcher=FakeFetcher(snapshot_html(request_id="request-2")),
+    ).import_shared_link(SHARE_URL)
+
+    assert first.raw_duplicate is False
+    assert second.raw_duplicate is False
+    assert first.import_id != second.import_id
+    assert first.raw_archive_path != second.raw_archive_path
+    assert second.projected_sessions == 0
+    assert second.duplicate_sessions == 1
+    assert second.revisions[0].revision == 1
+    revision_dir = second.revisions[0].revision_path.parent
+    assert [path.name for path in revision_dir.glob("revision-*.json")] == [
+        "revision-0001.json"
+    ]
 
 
 def test_updated_shared_snapshot_creates_session_revision(tmp_path: Path) -> None:

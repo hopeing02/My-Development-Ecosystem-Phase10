@@ -130,9 +130,9 @@ class ChatGPTProjectionStore:
                         "CHATGPT_PROJECTION_SESSION_KEY_CONFLICT",
                         "Projection session key conflicts with an existing session",
                     )
-                if (
+                if latest.adapter_version == CHATGPT_ADAPTER_VERSION and (
                     latest.source_content_hash == source_content_hash
-                    and latest.adapter_version == CHATGPT_ADAPTER_VERSION
+                    or latest.projection == projection
                 ):
                     return ChatGPTProjectionWriteResult(
                         session_id=session_id,
