@@ -17,12 +17,17 @@
 
 ## 물리 기기 상태
 
-`adb devices -l` 결과 연결된 기기가 0대였다. 따라서 사용자의 휴대폰에 설치하거나 앱 데이터를 변경하지 않았다.
+2026-08-20 준비 시점의 `adb devices -l` 결과 연결된 기기가 0대였다. 이후
+2026-08-24 외부 LTE 실기기에서 Tailscale을 통해 AutoKnowledge Lite 다운로드·연결과
+ChatGPT Shared Link 신규/중복 가져오기, Viewer 최신 Session 표시를 확인했다.
+
+상세 결과는 `TEST-035-mobile-chatgpt-live-validation.md`를 참조한다.
 
 ## 판정
 
 - 자동화 및 배포 준비: PASS
-- 물리 Android 설치 승인: PENDING
+- 물리 Android ChatGPT 경로: PASS
+- 전체 물리 Android 설치 승인: PENDING
 - 최종 상태: Internal RC
 
 물리 기기 승인 절차는 `GUIDE-009-mobile-rc-acceptance.md`를 따른다.

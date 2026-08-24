@@ -24,3 +24,4 @@
 - `TEST-006-android-clipboard-auto-capture.md`: 자동 감지 파이프라인·메타데이터·Android 빌드 검증
 - `TEST-033-step10-full-regression.md`: 전체 Python·Viewer·Android·APK 회귀 검증
 - `TEST-034-mobile-release-candidate.md`: 모바일 RC 메타데이터·배포 준비와 물리 기기 승인 상태
+- `TEST-035-mobile-chatgpt-live-validation.md`: 외부 LTE 실기기의 ChatGPT Shared Link 가져오기·중복 방지·Viewer 표시 검증
