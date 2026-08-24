@@ -100,3 +100,15 @@ def test_registry_remove_never_changes_source_files(tmp_path: Path) -> None:
     assert original.read_text(encoding="utf-8") == "# Original"
     with pytest.raises(SourceNotFoundError):
         registry.get("vault")
+
+
+def test_registry_persists_shared_link_target_policy(tmp_path: Path) -> None:
+    source_path = tmp_path / "mde-docs"
+    source_path.mkdir()
+    registry = SourceRegistry(tmp_path / "sources.json")
+    registry.add(source_path, name="mde-docs", category="development")
+
+    updated = registry.update("mde-docs", allow_as_shared_link_target=True)
+
+    assert updated.allow_as_shared_link_target is True
+    assert registry.get("mde-docs").allow_as_shared_link_target is True

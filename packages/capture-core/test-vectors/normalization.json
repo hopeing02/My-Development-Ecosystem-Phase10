@@ -1,0 +1,22 @@
+[
+  {
+    "name": "crlf_normalization",
+    "input": "첫 줄\r\n둘째 줄\r\n",
+    "normalized": "첫 줄\n둘째 줄"
+  },
+  {
+    "name": "trim_outer_whitespace",
+    "input": "  내용  ",
+    "normalized": "내용"
+  },
+  {
+    "name": "preserve_code_block_indentation",
+    "input": "설명\n\n\n\n```java\n  value  \n```",
+    "normalized": "설명\n\n\n```java\n  value  \n```"
+  },
+  {
+    "name": "preserve_korean",
+    "input": "한글 원문\r다음 줄",
+    "normalized": "한글 원문\n다음 줄"
+  }
+]

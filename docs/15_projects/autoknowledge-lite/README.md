@@ -16,3 +16,11 @@
 
 개인 메모와 학습 자료는 이 폴더가 아니라 별도의 `personal` Vault에 저장합니다.
 프로젝트 실행 중 생성되는 원시 로그는 코드 저장소에 문서로 복사하지 않고 Git 제외 경로에서 관리합니다.
+
+## 관련 결정
+
+- [ADR-011 AutoKnowledge Lite 모노레포 통합](../../09_decisions/ADR-011-autoknowledge-lite-monorepo-integration.md)
+- [ADR-012 AutoKnowledge Vault 폴더 허용 목록](../../09_decisions/ADR-012-autoknowledge-vault-folder-allowlist.md)
+- [ADR-013 AutoKnowledge APK 다운로드 경로](../../09_decisions/ADR-013-autoknowledge-apk-download-endpoint.md)
+- [ADR-014 AutoKnowledge PC 저장 화면](../../09_decisions/ADR-014-autoknowledge-pc-capture-page.md)
+- [ADR-015 Obsidian 지식 그래프 자동화](../../09_decisions/ADR-015-obsidian-knowledge-graph-automation.md)

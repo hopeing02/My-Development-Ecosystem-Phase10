@@ -1,8 +1,36 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "autoknowledge-lite"
-version = "0.1.0"
+version = "0.2.4"
 description = "autoknowledge-lite application"
 requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=0.69,<1",
+    "fastapi>=0.116,<1",
+    "httpx>=0.28,<1",
+    "mde-core",
+    "openai>=2.8,<3",
+    "pydantic>=2.11,<3",
+    "uvicorn>=0.35,<1",
+]
+
+[tool.uv.sources]
+mde-core = { path = "../../packages/mde-core", editable = true }
+
+[project.scripts]
+autoknowledge-lite = "autoknowledge_lite.cli:main"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8,<10",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.pytest.ini_options]
+pythonpath = ["src"]
 testpaths = ["tests"]

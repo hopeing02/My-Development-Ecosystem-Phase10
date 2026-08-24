@@ -1,5 +1,8 @@
 # DevelopmentLog
 
+- `2026-07-27.md` — Knowledge Graph API, Viewer와 AutoKnowledge CLI 통합
+- `2026-07-29.md` — Graph API·Viewer v1 계약 보강과 브라우저 E2E
+
 개발일지는 날짜별 Markdown 파일로 관리한다.
 
 각 파일에는 다음 제목만 사용한다.

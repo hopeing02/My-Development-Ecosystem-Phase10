@@ -407,11 +407,15 @@ uv run mde knowledge show mde-docs
 이 구간은 실제 Knowledge CLI 정의에서 생성된다. 직접 수정하지 않는다.
 
 - `mde knowledge add [-h] --name NAME --category {development,project,personal,work,shared} [--type {markdown,obsidian}] path`
-- `mde knowledge list [-h]`
+- `mde knowledge list [-h] [--format {json}]`
+- `mde knowledge integration-info [-h] [--format {json}]`
+- `mde knowledge source-path [-h] [--format {json}] source`
+- `mde knowledge index-file [-h] --source SOURCE --path PATH [--format {json}]`
 - `mde knowledge show [-h] source`
-- `mde knowledge update [-h] [--enabled ENABLED] [--agent-access AGENT_ACCESS] [--confirm-sensitive-access] source`
+- `mde knowledge update [-h] [--enabled ENABLED] [--agent-access AGENT_ACCESS] [--capture-write CAPTURE_WRITE] [--confirm-sensitive-access] [--confirm-sensitive-write] source`
 - `mde knowledge remove [-h] source`
 - `mde knowledge scan [-h] [--all] [--category {development,project,personal,work,shared}] [--include-sensitive] [source]`
 - `mde knowledge search [-h] [--source SOURCE] [--category {development,project,personal,work,shared}] [--tag TAG] [--limit LIMIT] [--all] [--include-sensitive] [query]`
 - `mde knowledge backlinks [-h] --source SOURCE [--limit LIMIT] document`
+- `mde knowledge serve [-h] [--port PORT] [--no-open]`
 <!-- MDE-DOCS:CLI-REFERENCE:END -->

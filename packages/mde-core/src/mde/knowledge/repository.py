@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import posixpath
 import sqlite3
 from collections.abc import Iterable
 from contextlib import contextmanager
@@ -12,6 +13,8 @@ from typing import Any, Iterator
 
 from mde.knowledge.errors import KnowledgeDatabaseError
 from mde.knowledge.models import (
+    GraphDocumentRecord,
+    GraphLinkRecord,
     KnowledgeDocument,
     KnowledgeSource,
     ScanResult,
@@ -60,6 +63,7 @@ class KnowledgeRepository:
                 enabled INTEGER NOT NULL,
                 sensitive INTEGER NOT NULL,
                 allow_agent_access INTEGER NOT NULL,
+                allow_as_shared_link_target INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 last_scanned_at TEXT
             );
@@ -92,8 +96,22 @@ class KnowledgeRepository:
                 source_id TEXT NOT NULL,
                 source_document_id TEXT NOT NULL,
                 target TEXT NOT NULL,
+                raw_target TEXT NOT NULL DEFAULT '',
+                normalized_target TEXT NOT NULL DEFAULT '',
                 link_type TEXT NOT NULL,
+                heading TEXT,
+                display_text TEXT,
+                occurrence_id TEXT NOT NULL DEFAULT '',
+                raw_text TEXT NOT NULL DEFAULT '',
+                start_offset INTEGER NOT NULL DEFAULT 0,
+                end_offset INTEGER NOT NULL DEFAULT 0,
+                line INTEGER NOT NULL DEFAULT 1,
+                column_number INTEGER NOT NULL DEFAULT 1,
+                context_preview TEXT NOT NULL DEFAULT '',
                 resolved_document_id TEXT,
+                resolution_status TEXT NOT NULL DEFAULT 'unresolved',
+                is_resolved INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT '',
                 FOREIGN KEY(source_id) REFERENCES knowledge_sources(id) ON DELETE CASCADE,
                 FOREIGN KEY(source_document_id) REFERENCES knowledge_documents(id) ON DELETE CASCADE
             );
@@ -116,6 +134,54 @@ class KnowledgeRepository:
             CREATE INDEX IF NOT EXISTS idx_links_source_target
                 ON knowledge_links(source_id, target);
             """
+        )
+        columns = {
+            str(row["name"])
+            for row in connection.execute("PRAGMA table_info(knowledge_links)")
+        }
+        source_columns = {
+            str(row["name"])
+            for row in connection.execute("PRAGMA table_info(knowledge_sources)")
+        }
+        if "allow_as_shared_link_target" not in source_columns:
+            connection.execute(
+                "ALTER TABLE knowledge_sources ADD COLUMN "
+                "allow_as_shared_link_target INTEGER NOT NULL DEFAULT 0"
+            )
+        if "resolution_status" not in columns:
+            connection.execute(
+                "ALTER TABLE knowledge_links ADD COLUMN "
+                "resolution_status TEXT NOT NULL DEFAULT 'unresolved'"
+            )
+        if "display_text" not in columns:
+            connection.execute(
+                "ALTER TABLE knowledge_links ADD COLUMN display_text TEXT"
+            )
+        migrations = {
+            "raw_target": "TEXT NOT NULL DEFAULT ''",
+            "normalized_target": "TEXT NOT NULL DEFAULT ''",
+            "heading": "TEXT",
+            "is_resolved": "INTEGER NOT NULL DEFAULT 0",
+            "created_at": "TEXT NOT NULL DEFAULT ''",
+            "occurrence_id": "TEXT NOT NULL DEFAULT ''",
+            "raw_text": "TEXT NOT NULL DEFAULT ''",
+            "start_offset": "INTEGER NOT NULL DEFAULT 0",
+            "end_offset": "INTEGER NOT NULL DEFAULT 0",
+            "line": "INTEGER NOT NULL DEFAULT 1",
+            "column_number": "INTEGER NOT NULL DEFAULT 1",
+            "context_preview": "TEXT NOT NULL DEFAULT ''",
+        }
+        for column, declaration in migrations.items():
+            if column not in columns:
+                connection.execute(
+                    f"ALTER TABLE knowledge_links ADD COLUMN {column} {declaration}"
+                )
+        connection.execute(
+            "UPDATE knowledge_links SET raw_target = target WHERE raw_target = ''"
+        )
+        connection.execute(
+            "UPDATE knowledge_links SET normalized_target = target "
+            "WHERE normalized_target = ''"
         )
         if force_like_search:
             self.fts_enabled = False
@@ -142,7 +208,8 @@ class KnowledgeRepository:
                 INSERT INTO knowledge_sources (
                     id, name, path, category, source_type, enabled, sensitive,
                     allow_agent_access, created_at, last_scanned_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    , allow_as_shared_link_target
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     name = excluded.name,
                     path = excluded.path,
@@ -151,6 +218,7 @@ class KnowledgeRepository:
                     enabled = excluded.enabled,
                     sensitive = excluded.sensitive,
                     allow_agent_access = excluded.allow_agent_access,
+                    allow_as_shared_link_target = excluded.allow_as_shared_link_target,
                     last_scanned_at = excluded.last_scanned_at
                 """,
                 (
@@ -166,6 +234,7 @@ class KnowledgeRepository:
                     source.last_scanned_at.isoformat()
                     if source.last_scanned_at
                     else None,
+                    source.allow_as_shared_link_target,
                 ),
             )
 
@@ -241,11 +310,32 @@ class KnowledgeRepository:
             connection.executemany(
                 """
                 INSERT INTO knowledge_links (
-                    source_id, source_document_id, target, link_type, resolved_document_id
-                ) VALUES (?, ?, ?, ?, NULL)
+                    source_id, source_document_id, target, raw_target,
+                    normalized_target, link_type, heading, display_text,
+                    occurrence_id, raw_text, start_offset, end_offset, line,
+                    column_number, context_preview, resolved_document_id,
+                    is_resolved, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?)
                 """,
                 (
-                    (document.source_id, document.id, link.target, link.link_type)
+                    (
+                        document.source_id,
+                        document.id,
+                        link.target,
+                        link.raw_target or link.target,
+                        link.target,
+                        link.link_type,
+                        link.heading,
+                        link.display_text,
+                        link.occurrence_id,
+                        link.raw_text,
+                        link.start_offset,
+                        link.end_offset,
+                        link.line,
+                        link.column,
+                        link.context_preview,
+                        document.indexed_at.isoformat(),
+                    )
                     for link in document.outgoing_links
                 ),
             )
@@ -343,6 +433,275 @@ class KnowledgeRepository:
                 ),
             )
 
+    def resolve_links(self, source_id: str) -> None:
+        """Resolve local links and explicit links to approved shared sources."""
+
+        with self._connect() as connection:
+            source_rows = connection.execute(
+                """
+                SELECT id, name, enabled, allow_as_shared_link_target
+                FROM knowledge_sources
+                """
+            ).fetchall()
+            documents = connection.execute(
+                """
+                SELECT id, source_id, relative_path, title, aliases
+                FROM knowledge_documents
+                """
+            ).fetchall()
+            links = connection.execute(
+                """
+                SELECT l.id, l.source_document_id,
+                       l.normalized_target AS target, l.link_type,
+                       d.relative_path AS source_path
+                FROM knowledge_links l
+                JOIN knowledge_documents d ON d.id = l.source_document_id
+                WHERE l.source_id = ?
+                """,
+                (source_id,),
+            ).fetchall()
+
+            source_by_reference: dict[str, tuple[str, bool]] = {}
+            for row in source_rows:
+                if not bool(row["enabled"]):
+                    continue
+                value = (str(row["id"]), bool(row["allow_as_shared_link_target"]))
+                source_by_reference[str(row["id"]).casefold()] = value
+                source_by_reference[str(row["name"]).casefold()] = value
+
+            maps: dict[str, tuple[dict[str, set[str]], dict[str, set[str]], dict[str, set[str]], dict[str, set[str]]]] = {}
+            for document in documents:
+                document_id = str(document["id"])
+                document_source_id = str(document["source_id"])
+                paths, stems, titles, aliases = maps.setdefault(
+                    document_source_id, ({}, {}, {}, {})
+                )
+                relative_path = str(document["relative_path"])
+                self._add_candidate(paths, self._path_key(relative_path), document_id)
+                self._add_candidate(
+                    stems, self._text_key(Path(relative_path).stem), document_id
+                )
+                self._add_candidate(
+                    titles, self._text_key(str(document["title"])), document_id
+                )
+                for alias in json.loads(str(document["aliases"])):
+                    self._add_candidate(
+                        aliases, self._text_key(str(alias)), document_id
+                    )
+
+            updates: list[tuple[str | None, str, int]] = []
+            for link in links:
+                link_type = str(link["link_type"])
+                if link_type == "external_url":
+                    updates.append((None, "external", int(link["id"])))
+                    continue
+                if link_type == "attachment":
+                    updates.append((None, "attachment", int(link["id"])))
+                    continue
+                if link_type not in {"wiki_link", "internal_markdown"}:
+                    updates.append((None, "unresolved", int(link["id"])))
+                    continue
+                raw_target = str(link["target"]).split("#", 1)[0].strip()
+                target_source_id = source_id
+                explicit_source = False
+                if "::" in raw_target:
+                    source_reference, raw_target = raw_target.split("::", 1)
+                    target_source = source_by_reference.get(
+                        source_reference.strip().casefold()
+                    )
+                    if not target_source or not target_source[1]:
+                        updates.append((None, "unresolved", int(link["id"])))
+                        continue
+                    target_source_id = target_source[0]
+                    explicit_source = True
+                paths, stems, titles, aliases = maps.get(
+                    target_source_id, ({}, {}, {}, {})
+                )
+                source_directory = posixpath.dirname(str(link["source_path"]))
+                path_candidates = [self._path_key(raw_target)]
+                if not explicit_source and (link_type == "internal_markdown" or raw_target.startswith(
+                    (".", "..")
+                )):
+                    path_candidates.insert(
+                        0,
+                        self._path_key(posixpath.join(source_directory, raw_target)),
+                    )
+                resolved, status = self._resolve_candidates(paths, path_candidates)
+                if status == "unresolved":
+                    target_stem = Path(raw_target).stem
+                    resolved, status = self._resolve_candidates(
+                        stems, [self._text_key(target_stem)]
+                    )
+                if status == "unresolved":
+                    resolved, status = self._resolve_candidates(
+                        titles, [self._text_key(raw_target)]
+                    )
+                if status == "unresolved":
+                    resolved, status = self._resolve_candidates(
+                        aliases, [self._text_key(raw_target)]
+                    )
+                updates.append((resolved, status, int(link["id"])))
+
+            connection.executemany(
+                """
+                UPDATE knowledge_links
+                SET resolved_document_id = ?, resolution_status = ?,
+                    is_resolved = CASE WHEN ? = 'resolved' THEN 1 ELSE 0 END
+                WHERE id = ?
+                """,
+                (
+                    (resolved, status, status, link_id)
+                    for resolved, status, link_id in updates
+                ),
+            )
+
+    def resolve_all_links(self) -> None:
+        """Re-resolve every source so shared-target changes update backlinks."""
+
+        with self._connect() as connection:
+            source_ids = tuple(
+                str(row["id"])
+                for row in connection.execute(
+                    "SELECT id FROM knowledge_sources WHERE enabled = 1 ORDER BY id"
+                )
+            )
+        for source_id in source_ids:
+            self.resolve_links(source_id)
+
+    def graph_records(
+        self, source_id: str
+    ) -> tuple[tuple[GraphDocumentRecord, ...], tuple[GraphLinkRecord, ...]]:
+        """Return source-scoped records consumed by the graph query service."""
+
+        with self._connect() as connection:
+            link_rows = connection.execute(
+                """
+                SELECT l.id, l.source_document_id, l.resolved_document_id,
+                       l.normalized_target AS target,
+                       l.link_type, l.resolution_status, l.display_text, l.raw_target,
+                       l.occurrence_id, l.raw_text, l.start_offset, l.end_offset, l.line,
+                       l.column_number, l.context_preview
+                FROM knowledge_links l
+                WHERE (l.source_id = ? OR l.resolved_document_id IN (
+                    SELECT id FROM knowledge_documents WHERE source_id = ?
+                ))
+                  AND l.link_type IN ('wiki_link', 'internal_markdown')
+                ORDER BY l.id
+                """,
+                (source_id, source_id),
+            ).fetchall()
+            related_ids = {
+                str(value)
+                for row in link_rows
+                for value in (row["source_document_id"], row["resolved_document_id"])
+                if value is not None
+            }
+            placeholders = ",".join("?" for _ in related_ids)
+            condition = "d.source_id = ?"
+            parameters: list[object] = [source_id]
+            if related_ids:
+                condition += f" OR d.id IN ({placeholders})"
+                parameters.extend(sorted(related_ids))
+            document_rows = connection.execute(
+                """
+                SELECT d.id, d.source_id, d.title, d.relative_path, d.aliases,
+                       d.modified_at, d.indexed_at, d.content, d.content_hash,
+                       s.category
+                FROM knowledge_documents d
+                JOIN knowledge_sources s ON s.id = d.source_id
+                WHERE """ + condition + """
+                ORDER BY d.title COLLATE NOCASE, d.relative_path COLLATE NOCASE
+                """,
+                parameters,
+            ).fetchall()
+            document_ids = tuple(str(row["id"]) for row in document_rows)
+            tag_placeholders = ",".join("?" for _ in document_ids)
+            tag_rows = connection.execute(
+                """
+                SELECT document_id, tag FROM knowledge_tags
+                WHERE document_id IN (""" + tag_placeholders + ") ORDER BY tag COLLATE NOCASE",
+                document_ids,
+            ).fetchall() if document_ids else []
+        tags: dict[str, list[str]] = {}
+        for row in tag_rows:
+            tags.setdefault(str(row["document_id"]), []).append(str(row["tag"]))
+        documents = tuple(
+            GraphDocumentRecord(
+                id=str(row["id"]),
+                source_id=str(row["source_id"]),
+                title=str(row["title"]),
+                relative_path=str(row["relative_path"]),
+                category=str(row["category"]),
+                tags=tuple(tags.get(str(row["id"]), ())),
+                aliases=tuple(json.loads(str(row["aliases"]))),
+                modified_at=datetime.fromisoformat(str(row["modified_at"])),
+                indexed_at=datetime.fromisoformat(str(row["indexed_at"])),
+                content=str(row["content"]),
+                content_hash=str(row["content_hash"]),
+            )
+            for row in document_rows
+        )
+        links = tuple(
+            GraphLinkRecord(
+                id=int(row["id"]),
+                source_document_id=str(row["source_document_id"]),
+                target_document_id=(
+                    str(row["resolved_document_id"])
+                    if row["resolved_document_id"] is not None
+                    else None
+                ),
+                target=str(row["target"]),
+                link_type=str(row["link_type"]),
+                resolution_status=str(row["resolution_status"]),
+                display_text=(
+                    str(row["display_text"])
+                    if row["display_text"] is not None
+                    else None
+                ),
+                raw_target=str(row["raw_target"]),
+                occurrence_id=str(row["occurrence_id"]),
+                raw_text=str(row["raw_text"]),
+                start_offset=int(row["start_offset"]),
+                end_offset=int(row["end_offset"]),
+                line=int(row["line"]),
+                column=int(row["column_number"]),
+                context_preview=str(row["context_preview"]),
+            )
+            for row in link_rows
+        )
+        return documents, links
+
+    @staticmethod
+    def _add_candidate(
+        mapping: dict[str, set[str]], key: str, document_id: str
+    ) -> None:
+        if key:
+            mapping.setdefault(key, set()).add(document_id)
+
+    @staticmethod
+    def _resolve_candidates(
+        mapping: dict[str, set[str]], keys: list[str]
+    ) -> tuple[str | None, str]:
+        matches: set[str] = set()
+        for key in keys:
+            matches.update(mapping.get(key, ()))
+        if len(matches) == 1:
+            return next(iter(matches)), "resolved"
+        if len(matches) > 1:
+            return None, "ambiguous"
+        return None, "unresolved"
+
+    @staticmethod
+    def _path_key(value: str) -> str:
+        normalized = posixpath.normpath(value.strip().replace("\\", "/"))
+        if not normalized.casefold().endswith(".md"):
+            normalized = f"{normalized}.md"
+        return normalized.lstrip("./").casefold()
+
+    @staticmethod
+    def _text_key(value: str) -> str:
+        return " ".join(value.casefold().split())
+
     def search(
         self,
         *,
@@ -395,24 +754,33 @@ class KnowledgeRepository:
         self, *, source_id: str, document: str, limit: int = 100
     ) -> tuple[SearchResult, ...]:
         target = document.strip()
-        candidates = {target, Path(target).stem}
         with self._connect() as connection:
             rows = connection.execute(
                 """
-                SELECT relative_path, title, aliases FROM knowledge_documents
-                WHERE source_id = ? AND (
-                    id = ? OR relative_path = ? OR title = ? OR
-                    relative_path LIKE ?
-                )
+                SELECT id, relative_path, title, aliases FROM knowledge_documents
+                WHERE source_id = ?
                 """,
-                (source_id, target, target, target, f"%/{target}.md"),
+                (source_id,),
             ).fetchall()
-            for row in rows:
-                candidates.add(str(row["title"]))
-                candidates.add(Path(str(row["relative_path"])).stem)
-                candidates.add(str(row["relative_path"]))
-                candidates.update(json.loads(str(row["aliases"])))
-            placeholders = ",".join("?" for _ in candidates)
+            target_key = self._text_key(target)
+            target_ids = [
+                str(row["id"])
+                for row in rows
+                if target_key
+                in {
+                    self._text_key(str(row["id"])),
+                    self._text_key(str(row["title"])),
+                    self._text_key(str(row["relative_path"])),
+                    self._text_key(Path(str(row["relative_path"])).stem),
+                    *(
+                        self._text_key(str(alias))
+                        for alias in json.loads(str(row["aliases"]))
+                    ),
+                }
+            ]
+            if not target_ids:
+                return ()
+            placeholders = ",".join("?" for _ in target_ids)
             results = connection.execute(
                 f"""
                 SELECT DISTINCT d.id, d.source_id, d.title, d.relative_path, d.content,
@@ -420,11 +788,13 @@ class KnowledgeRepository:
                 FROM knowledge_links l
                 JOIN knowledge_documents d ON d.id = l.source_document_id
                 JOIN knowledge_sources s ON s.id = d.source_id
-                WHERE l.source_id = ? AND l.target IN ({placeholders})
+                WHERE l.source_id = ?
+                  AND l.resolution_status = 'resolved'
+                  AND l.resolved_document_id IN ({placeholders})
                 ORDER BY d.relative_path COLLATE NOCASE
                 LIMIT ?
                 """,
-                (source_id, *sorted(candidates), max(1, limit)),
+                (source_id, *target_ids, max(1, limit)),
             ).fetchall()
         return tuple(self._search_result(row, None) for row in results)
 

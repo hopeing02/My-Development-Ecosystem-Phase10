@@ -1,0 +1,32 @@
+plugins {
+    id("com.android.application")
+}
+
+android {
+    namespace = "dev.mde.autoknowledge"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "dev.mde.autoknowledge"
+        minSdk = 26
+        targetSdk = 34
+        versionCode = 5
+        versionName = "0.2.4"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    sourceSets["test"].resources.srcDir(
+        "../../../../packages/capture-core/test-vectors"
+    )
+}
+
+dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20250517")
+}

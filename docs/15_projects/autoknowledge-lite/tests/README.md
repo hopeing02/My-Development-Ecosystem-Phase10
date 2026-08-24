@@ -1,3 +1,27 @@
-# autoknowledge-lite · tests
+# AutoKnowledge Lite 테스트
 
-이 폴더에는 `autoknowledge-lite` 프로젝트의 tests 관련 자료를 보관합니다.
+## 자동 테스트 범위
+
+- 상태·공유·분석·Markdown API
+- 로컬 작업 JSON 저장과 오류 격리
+- 로컬·OpenAI·Claude 분석기 변환
+- 공개 URL 본문 추출과 안전 제한
+- Obsidian 파일명·UTF-8 저장
+- Git 동기화 명령과 Vault 외부 경로 차단
+- Android 공유·클립보드 payload
+- Android Debug APK 빌드
+- MDE 전체 회귀
+
+테스트는 임시 디렉터리와 테스트 대역을 사용하며 실제 개인 Vault나 Git 원격에 데이터를 쓰지 않는다.
+
+## 테스트 기록
+
+- `TEST-001-monorepo-integration.md`: 모노레포 통합 및 저장 경계 검증
+- `TEST-002-vault-folder-selection.md`: 고정 폴더 선택·기본값·경로 이탈 방지 검증
+- `TEST-003-android-apk-download.md`: APK 고정 다운로드·404·Tailscale 실제 파일 검증
+- `TEST-004-pc-capture-page.md`: PC 화면·고정 폴더·기존 저장 API 연결 검증
+- `TEST-005-obsidian-knowledge-graph.md`: 기존 원문 보존과 자동 그래프 구성 검증
+- `TEST-006-android-clipboard-auto-capture.md`: 자동 감지 파이프라인·메타데이터·Android 빌드 검증
+- `TEST-033-step10-full-regression.md`: 전체 Python·Viewer·Android·APK 회귀 검증
+- `TEST-034-mobile-release-candidate.md`: 모바일 RC 메타데이터·배포 준비와 물리 기기 승인 상태
+- `TEST-035-mobile-chatgpt-live-validation.md`: 외부 LTE 실기기의 ChatGPT Shared Link 가져오기·중복 방지·Viewer 표시 검증

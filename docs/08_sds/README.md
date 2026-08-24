@@ -8,3 +8,4 @@
 
 - `SDS-001 AutoKnowledge Lite Project Design Specification.md`
 - `SDS-002-knowledge-plugin-v1.md` — Knowledge Plugin v1 상세 설계
+- `SDS-003-knowledge-graph-integration.md` — Graph Query, API와 앱 연동 설계

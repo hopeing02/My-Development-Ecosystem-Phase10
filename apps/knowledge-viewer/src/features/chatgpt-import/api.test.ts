@@ -1,0 +1,164 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import {
+  getChatGPTMessages,
+  getChatGPTSession,
+  getChatGPTTask,
+  getChatGPTTimeline,
+  importChatGPTExport,
+  importChatGPTSharedLink,
+  listChatGPTSessions,
+  listChatGPTTasks,
+  searchChatGPT,
+} from "./api";
+
+describe("ChatGPT import API", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("sends the selected ZIP as an authenticated binary request", async () => {
+    const result = {
+      status: "imported",
+      importId: "chatgpt_123",
+      rawDuplicate: false,
+      discoveredSessions: 1,
+      projectedSessions: 1,
+      duplicateSessions: 0,
+      failedSessions: 0,
+      warnings: [],
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const file = new File(["zip-data"], "export.zip", { type: "application/zip" });
+
+    await expect(importChatGPTExport(file, "secret")).resolves.toEqual(result);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/chatgpt/imports",
+      expect.objectContaining({
+        method: "POST",
+        body: file,
+        headers: expect.objectContaining({
+          Authorization: "Bearer secret",
+          "Content-Type": "application/zip",
+          "X-File-Name": "export.zip",
+        }),
+      }),
+    );
+  });
+
+  it("surfaces the API error code without exposing request content", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ detail: { code: "CHATGPT_EXPORT_INVALID", message: "Invalid ZIP." } }),
+          { status: 422, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+
+    const request = importChatGPTExport(new File(["bad"], "bad.zip"), "secret");
+    await expect(request).rejects.toMatchObject({
+      code: "CHATGPT_EXPORT_INVALID",
+      message: "Invalid ZIP.",
+    });
+  });
+
+  it("submits one explicit shared URL as authenticated JSON", async () => {
+    const result = {
+      status: "imported",
+      importId: "chatgpt_shared_123",
+      rawDuplicate: false,
+      discoveredSessions: 1,
+      projectedSessions: 1,
+      duplicateSessions: 0,
+      failedSessions: 0,
+      warnings: [],
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await importChatGPTSharedLink("https://chatgpt.com/share/conversation-1", "secret");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/chatgpt/shared-imports",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ Authorization: "Bearer secret" }),
+        body: JSON.stringify({ url: "https://chatgpt.com/share/conversation-1" }),
+      }),
+    );
+  });
+
+  it("reads stored sessions and messages without a control key", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], hasMore: false, total: 0 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ session: { sessionId: "session-1" }, warnings: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], hasMore: false, total: 0 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], hasMore: false, total: 0 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ task: {}, activities: [] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await listChatGPTSessions("design");
+    await getChatGPTSession("session-1");
+    await getChatGPTMessages("session-1");
+    await listChatGPTTasks("session-1");
+    await getChatGPTTask("task:session-1:0001");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/chatgpt/sessions?limit=30&q=design",
+      { headers: { Accept: "application/json" } },
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/chatgpt/sessions/session-1",
+      { headers: { Accept: "application/json" } },
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "/api/v1/chatgpt/sessions/session-1/messages?limit=100",
+      { headers: { Accept: "application/json" } },
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "/api/v1/chatgpt/tasks?sessionId=session-1&limit=100",
+      { headers: { Accept: "application/json" } },
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      "/api/v1/chatgpt/tasks/task%3Asession-1%3A0001",
+      { headers: { Accept: "application/json" } },
+    );
+  });
+
+  it("queries structured ChatGPT search and timeline as read-only data", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], total: 0, limit: 100 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], total: 0, limit: 500, truncated: false, omittedWithoutTimestamp: 0 }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await searchChatGPT("viewer result", "ACTIVITY");
+    await getChatGPTTimeline("session-1");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/chatgpt/search?q=viewer+result&limit=100&entityType=ACTIVITY",
+      { headers: { Accept: "application/json" } },
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/chatgpt/timeline?limit=500&sessionId=session-1",
+      { headers: { Accept: "application/json" } },
+    );
+  });
+});

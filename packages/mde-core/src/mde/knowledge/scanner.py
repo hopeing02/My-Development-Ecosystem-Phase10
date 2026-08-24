@@ -15,6 +15,8 @@ EXCLUDED_DIRECTORIES = frozenset(
         ".git",
         ".obsidian",
         ".mde",
+        ".mde-backups",
+        ".mde-trash",
         "node_modules",
         ".venv",
         "venv",
@@ -50,6 +52,8 @@ def iter_markdown_files(root: Path) -> tuple[Path, ...]:
         if any(part.casefold() in EXCLUDED_DIRECTORIES for part in relative.parts[:-1]):
             continue
         if path.is_file():
+            if path.name.endswith(".mde-tmp"):
+                continue
             files.append(path)
     return tuple(sorted(files, key=lambda item: item.as_posix().casefold()))
 

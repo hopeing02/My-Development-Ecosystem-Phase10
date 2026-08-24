@@ -1,1 +1,3 @@
 PyYAML>=6.0
+fastapi<1,>=0.116
+uvicorn<1,>=0.35

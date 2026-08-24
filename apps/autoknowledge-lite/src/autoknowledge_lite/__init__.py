@@ -1,1 +1,6 @@
-__version__ = "0.1.0"
+"""AutoKnowledge Lite application package."""
+
+from autoknowledge_lite.api import app, create_app
+
+__all__ = ["__version__", "app", "create_app"]
+__version__ = "0.2.2"

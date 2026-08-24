@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mde.local/schemas/capture-envelope-v1.schema.json",
+  "title": "AutoKnowledge Capture Envelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "captureId",
+    "sourceType",
+    "captureType",
+    "captureDevice",
+    "captureMethod",
+    "projectId",
+    "targetFolder",
+    "parentDocument",
+    "capturedAt",
+    "deviceId",
+    "contentHash",
+    "metadata",
+    "payload"
+  ],
+  "properties": {
+    "schemaVersion": {"const": "1.0"},
+    "captureId": {"type": "string", "minLength": 1, "maxLength": 200},
+    "sourceType": {"enum": ["chatgpt", "codex", "general"]},
+    "captureType": {"enum": ["clipboard_item", "development_session"]},
+    "captureDevice": {"enum": ["android", "windows"]},
+    "captureMethod": {"type": "string", "minLength": 1, "maxLength": 100},
+    "projectId": {"type": ["string", "null"], "maxLength": 200},
+    "targetFolder": {
+      "type": "string",
+      "pattern": "^(00_Inbox|10_Life|20_Learning|30_Interests|40_Reference|90_Archive)(/[A-Za-z0-9._ -]+)*$"
+    },
+    "parentDocument": {"type": ["string", "null"], "maxLength": 2000},
+    "capturedAt": {"type": "string", "format": "date-time"},
+    "deviceId": {"type": "string", "minLength": 1, "maxLength": 200},
+    "contentHash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "metadata": {"type": "object"},
+    "payload": {"type": "object"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"captureType": {"const": "clipboard_item"}}},
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/clipboardItemPayload"
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"captureType": {"const": "development_session"}}},
+      "then": {
+        "properties": {
+          "payload": {
+            "$ref": "#/$defs/developmentSessionPayload"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "clipboardItemPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["content"],
+      "properties": {
+        "content": {"type": "string", "maxLength": 1048576},
+        "title": {"type": ["string", "null"], "maxLength": 200},
+        "mimeType": {"type": "string", "default": "text/plain"},
+        "language": {"type": ["string", "null"], "maxLength": 50}
+      }
+    },
+    "developmentSessionPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clientType", "startedAt"],
+      "properties": {
+        "captureSessionId": {"type": ["string", "null"], "minLength": 1, "maxLength": 500},
+        "sourceSessionId": {"type": ["string", "null"], "minLength": 1, "maxLength": 500},
+        "clientType": {"type": "string", "minLength": 1, "maxLength": 100},
+        "title": {"type": "string", "minLength": 1, "maxLength": 200},
+        "request": {"type": ["string", "null"], "maxLength": 10000},
+        "summary": {"type": ["string", "null"], "maxLength": 10000},
+        "startedAt": {"type": "string", "format": "date-time"},
+        "endedAt": {"type": ["string", "null"], "format": "date-time"},
+        "closureReason": {"type": ["string", "null"], "maxLength": 100},
+        "repository": {"type": ["object", "null"]},
+        "beforeSnapshot": {"type": "object", "default": {}},
+        "afterSnapshot": {"type": "object", "default": {}},
+        "messages": {"type": "array", "default": []},
+        "notes": {"type": "array", "default": []},
+        "commands": {"type": "array", "default": []},
+        "changedFiles": {"type": "array", "default": []},
+        "tests": {"type": "array", "default": []},
+        "attachments": {"type": "array", "default": []}
+      }
+    }
+  }
+}

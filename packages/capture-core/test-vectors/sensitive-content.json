@@ -1,0 +1,6 @@
+[
+  {"name": "openai_key", "input": "OPENAI_API_KEY=sk-abcdefghijklmnop", "sensitive": true},
+  {"name": "bearer", "input": "Authorization: Bearer abcdefghijklmnop", "sensitive": true},
+  {"name": "private_key", "input": "-----BEGIN PRIVATE KEY-----", "sensitive": true},
+  {"name": "explanation", "input": "token과 password 개념을 설명합니다.", "sensitive": false}
+]

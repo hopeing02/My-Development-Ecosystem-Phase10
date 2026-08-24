@@ -4,6 +4,18 @@
 
 ## Unreleased
 
+- Added automatic Obsidian aliases, normalized tags, MOC links, graph settings, templates, and Bases for the personal Vault.
+
+- Added AutoKnowledge Lite 0.2.1 PC clipboard and fixed-folder capture page at `/pc`.
+
+- Added a fixed, Tailscale-accessible AutoKnowledge Lite Android APK download endpoint.
+
+- Added AutoKnowledge Lite 0.2.0 fixed Vault folder selection with server-side path allowlisting and Android selection persistence.
+
+- Integrated the complete AutoKnowledge Lite Python and Android implementation into `apps/autoknowledge-lite/` while preserving the personal Vault and Git synchronization settings.
+
+- Excluded local agent workspaces, generated dependencies, runtime data, Android build state, and the preserved nested Vault recovery copy from Git.
+
 - Prevented Knowledge CLI Unicode output crashes on narrow Windows console encodings.
 
 - Added project-specific `usage/` documentation to new-project scaffolding and documented the boundary between project records and personal Vault notes.
