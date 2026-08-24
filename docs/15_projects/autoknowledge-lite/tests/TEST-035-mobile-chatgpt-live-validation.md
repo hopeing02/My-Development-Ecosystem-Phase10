@@ -20,6 +20,7 @@
 - Project Timeline 표시와 ChatGPT/Codex 원본 이동 확인
 - ChatGPT Session/Message/Task/Activity Knowledge Graph 표시 확인
 - AutoKnowledge Lite와 Viewer 종료·재실행 후 서버 설정과 Session 조회 유지 확인
+- MDE Knowledge Viewer Android APK 설치·연결·재실행 확인
 
 ## 서버 측 확인
 
@@ -52,7 +53,8 @@
 - 모바일 ChatGPT Shared Link 획득·중복 방지·Viewer 최신 Session 표시: PASS
 - Project Timeline과 Knowledge Graph: PASS
 - 앱 종료·재실행 후 설정 유지: PASS
-- 전체 모바일 RC 승인: PENDING
+- MDE Knowledge Viewer Android APK 설치·실행: PASS
+- 전체 모바일 RC 승인: PASS
 
-별도 MDE Knowledge Viewer Android APK의 업데이트 설치·패키지 실행과 Android 상세
-버전 기록은 아직 확인되지 않았다. Chrome 기반 Viewer 동작은 PASS다.
+Android 상세 버전은 확인되지 않아 추정하지 않고 미확인으로 기록했다. 기능 승인에는
+휴대폰 모델 `LGE LM-Q815L`에서 확인한 실제 설치·연결·재실행 결과를 사용했다.

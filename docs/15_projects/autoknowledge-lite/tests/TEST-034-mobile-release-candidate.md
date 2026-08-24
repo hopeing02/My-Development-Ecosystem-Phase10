@@ -29,8 +29,8 @@ ChatGPT Shared Link 신규/중복 가져오기, Viewer 최신 Session, Timeline,
 - 자동화 및 배포 준비: PASS
 - 물리 Android ChatGPT 경로: PASS
 - 모바일 Chrome Viewer Timeline/Graph 경로: PASS
-- 별도 Knowledge Viewer Android APK 설치·실행: PENDING
-- 전체 물리 Android 설치 승인: PENDING
-- 최종 상태: Internal RC
+- 별도 Knowledge Viewer Android APK 설치·실행: PASS
+- 전체 물리 Android 설치 승인: PASS
+- 최종 상태: Ready
 
 물리 기기 승인 절차는 `GUIDE-009-mobile-rc-acceptance.md`를 따른다.

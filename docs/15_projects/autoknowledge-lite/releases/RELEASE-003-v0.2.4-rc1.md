@@ -1,7 +1,8 @@
 # RELEASE-003 AutoKnowledge Lite v0.2.4 RC1
 
 - 후보 확정일: 2026-08-20
-- 상태: Internal Release Candidate — 모바일 핵심 경로 승인, Viewer Android APK 승인 대기
+- 실기기 승인일: 2026-08-24
+- 상태: Ready
 - 대상: AutoKnowledge-Lite `0.2.4`와 MDE Knowledge Viewer Android `0.1.0`
 
 ## 주요 기능
@@ -53,16 +54,16 @@
 - Knowledge Viewer Android: 3 passed
 - 두 debug APK: BUILD SUCCESSFUL
 
-## 남은 승인 조건
+## 물리 기기 승인
 
 2026-08-24 외부 LTE 실기기에서 AutoKnowledge Lite 다운로드·Tailscale 연결,
 ChatGPT Shared Link 신규/중복 가져오기, Viewer 최신 Session, Project Timeline,
 Knowledge Graph와 앱 재실행 후 설정 유지를 확인했다.
 상세 결과는 `TEST-035-mobile-chatgpt-live-validation.md`를 참조한다.
 
-별도 MDE Knowledge Viewer Android APK의 업데이트 설치·패키지 실행과 Android 상세
-버전 기록을 포함한 `GUIDE-009-mobile-rc-acceptance.md`의 나머지 물리 기기 항목을
-통과하면 상태를 `Ready`로 변경한다. Chrome 기반 Viewer는 승인됐다.
+AutoKnowledge Lite와 별도 MDE Knowledge Viewer Android APK의 설치·연결·재실행을
+확인했다. 실기기 모델은 `LGE LM-Q815L`이며 Android 상세 버전은 확인되지 않아
+추정하지 않았다. 모바일 RC 판정은 `Ready`다.
 
 ## 알려진 제한
 
