@@ -1,7 +1,7 @@
 # RELEASE-003 AutoKnowledge Lite v0.2.4 RC1
 
 - 후보 확정일: 2026-08-20
-- 상태: Internal Release Candidate — 모바일 ChatGPT 경로 승인, 전체 물리 기기 승인 대기
+- 상태: Internal Release Candidate — 모바일 핵심 경로 승인, Viewer Android APK 승인 대기
 - 대상: AutoKnowledge-Lite `0.2.4`와 MDE Knowledge Viewer Android `0.1.0`
 
 ## 주요 기능
@@ -56,12 +56,13 @@
 ## 남은 승인 조건
 
 2026-08-24 외부 LTE 실기기에서 AutoKnowledge Lite 다운로드·Tailscale 연결,
-ChatGPT Shared Link 신규/중복 가져오기와 Viewer 최신 Session 표시를 확인했다.
+ChatGPT Shared Link 신규/중복 가져오기, Viewer 최신 Session, Project Timeline,
+Knowledge Graph와 앱 재실행 후 설정 유지를 확인했다.
 상세 결과는 `TEST-035-mobile-chatgpt-live-validation.md`를 참조한다.
 
-Project Timeline, Knowledge Graph, 두 앱 재실행 후 설정 유지와 기기 정보 기록을 포함한
-`GUIDE-009-mobile-rc-acceptance.md`의 나머지 물리 기기 항목을 통과하면 상태를
-`Ready`로 변경한다.
+별도 MDE Knowledge Viewer Android APK의 업데이트 설치·패키지 실행과 Android 상세
+버전 기록을 포함한 `GUIDE-009-mobile-rc-acceptance.md`의 나머지 물리 기기 항목을
+통과하면 상태를 `Ready`로 변경한다. Chrome 기반 Viewer는 승인됐다.
 
 ## 알려진 제한
 
