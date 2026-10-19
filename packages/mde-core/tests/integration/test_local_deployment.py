@@ -1,7 +1,10 @@
 import http.client
+import io
 import json
+import os
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 import psutil
@@ -14,9 +17,29 @@ from mde.plugins.builtin.deployment import (
     deploy_local,
     deployment_status,
     manage_deployment,
+    _snapshot,
 )
 from mde.task.concurrency import TaskExecutionLock, TaskLockError
 from mde.workflow.models import WorkflowContext, WorkflowStep
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows MAX_PATH regression")
+def test_snapshot_extracts_tracked_paths_beyond_windows_limit(tmp_path, monkeypatch):
+    content = io.BytesIO()
+    member = "/".join(["nested-source"] * 20) + "/file.txt"
+    with zipfile.ZipFile(content, "w") as archive:
+        archive.writestr(member, "tracked content")
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args, 0, content.getvalue()
+        ),
+    )
+    release = tmp_path / "release"
+    _snapshot(tmp_path, release, "HEAD")
+    destination = Path("\\\\?\\" + str(release / member))
+    assert destination.read_text() == "tracked content"
 
 
 @pytest.fixture

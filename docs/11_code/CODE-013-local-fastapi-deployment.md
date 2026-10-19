@@ -91,3 +91,9 @@ uv run mde workflow run feature-local --runtime --inputs .mde/inputs.json --max-
 
 - [psutil 프로세스 API](https://psutil.io/api/psutil.html)
 - 실제 설치된 Uvicorn CLI와 psutil 7.2.2를 사용한 프로세스 통합 테스트
+
+## 실배포 보완
+
+현재 PC의 전체 monorepo snapshot 추출에서 Windows MAX_PATH 제한을 발견했다.
+기존 경로 이탈 검사를 유지하고 Windows 추출 대상에만 확장 경로를 사용한다.
+Android 파일을 누락시키거나 기존 소스를 변경하지 않는다. 긴 경로 회귀를 추가했다.

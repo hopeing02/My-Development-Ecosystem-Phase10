@@ -17,6 +17,7 @@ Python 3.12.14, 기존 frozen 환경 및 신규 psutil 7.2.2를 사용했다.
 - app/health/name/python/timeout/path 입력 검증, dirty worktree 및 동시 배포 거부.
 - 없는 배포 status 조회의 무변경, 이전 버전 없는 rollback 거부, 손상 state 보존.
 - 생성 시각 또는 command가 일치하지 않는 PID는 종료하지 않음.
+- Windows MAX_PATH를 넘는 tracked 경로의 snapshot 추출. 실제 monorepo 배포에서 발견한 오류를 확장 경로로 수정.
 - CLI 호출 프로세스가 종료돼도 서비스 유지, 별도 CLI status/stop 정상.
 - 실제 공개 workflow CLI: 입력 JSON → mock 생성 → pytest → 커밋 → 선택적 push 생략 →
   실제 배포 → version=two HTTP 응답. source worktree clean.
@@ -32,7 +33,7 @@ Python 3.12.14, 기존 frozen 환경 및 신규 psutil 7.2.2를 사용했다.
 
 | 검증 | 결과 |
 |---|---|
-| root 전체 | 265 passed, 경고 0개, 30.32초 |
+| root 전체 | 266 passed, 경고 0개 (Windows 긴 경로 회귀 포함) |
 | 앱·메타데이터 전체 | 226 passed, 경고 0개, 5.41초 |
 | Black 전체 | 236개 파일 유지, PASS |
 | Ruff 전체 | PASS |

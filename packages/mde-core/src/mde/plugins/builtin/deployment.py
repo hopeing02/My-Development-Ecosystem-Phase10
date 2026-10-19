@@ -159,7 +159,15 @@ def _snapshot(root: Path, release: Path, commit: str) -> None:
             destination = (release / entry.filename).resolve()
             if not destination.is_relative_to(release):
                 raise DeploymentError("Snapshot entry escapes the release directory.")
-        archive.extractall(release)
+        # Monorepo snapshots can exceed Windows MAX_PATH even when the app is shallow.
+        target = str(release)
+        if os.name == "nt" and not target.startswith("\\\\?\\"):
+            target = (
+                "\\\\?\\UNC\\" + target[2:]
+                if target.startswith("\\\\")
+                else "\\\\?\\" + target
+            )
+        archive.extractall(target)
 
 
 def deploy_local(
