@@ -1,0 +1,31 @@
+version: 1
+name: feature-local
+description: Explicit local FastAPI development, test, commit, and deployment workflow.
+steps:
+  - id: prepare
+    command: task.prepare
+  - id: generate
+    command: ai.generate
+    depends_on: [prepare]
+  - id: review
+    command: change.review
+    depends_on: [generate]
+  - id: apply
+    command: change.apply
+    depends_on: [review]
+  - id: test
+    command: test.run
+    depends_on: [apply]
+  - id: save
+    command: git.save
+    depends_on: [test]
+  - id: push
+    command: git.push
+    depends_on: [save]
+    condition: data.push_enabled
+  - id: deploy
+    command: deploy.local
+    depends_on: [push]
+  - id: complete
+    command: task.complete
+    depends_on: [deploy]

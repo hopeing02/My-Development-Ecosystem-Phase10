@@ -6,6 +6,8 @@
 
 ## 문서 목록
 
+- `CODE-013-local-fastapi-deployment.md` — 로컬 FastAPI 배포·Workflow 연결·명시적 리뷰 판정
+
 - `CODE-012-automation-repair-continuation.md` — 자동 수정 이후 원래 Workflow 재개
 
 - `CODE-011-reserved-cli-contract.md` — generate/inbox 실태 분석·예약 도움말·문서 정합성

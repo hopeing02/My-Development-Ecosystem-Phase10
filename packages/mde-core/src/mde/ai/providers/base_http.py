@@ -5,13 +5,18 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any
 
-from mde.ai.errors import AIConfigurationError, AITransportError
+from mde.ai.errors import (
+    AIConfigurationError,
+    AITransportError,
+    AIResponseValidationError,
+)
 from mde.ai.models import AIRequest, AIResponse
 from mde.ai.parsing import extract_json_object, parse_artifact_document
 from mde.ai.transport import HTTPTransport, UrllibHTTPTransport
 from mde.ai.usage import estimate_cost_usd, normalize_usage
 
 SYSTEM_PROMPT = """You are the MDE AI engine. Return JSON only with this schema:\n{\"summary\": \"...\", \"artifacts\": [{\"path\": \"relative/path\", \"content\": \"...\", \"media_type\": \"text/plain\"}]}\nNever use absolute paths or parent traversal. For review/summarize, artifacts may be empty."""
+SYSTEM_PROMPT += '\nFor review, inspect the supplied artifact contents and include an explicit boolean "approved": true or false. Never approve changes you cannot review.'
 
 
 class BaseHTTPAIProvider(ABC):
@@ -77,12 +82,21 @@ class BaseHTTPAIProvider(ABC):
                 text, usage = self.extract_text_and_usage(response.data)
                 document = extract_json_object(text)
                 summary, artifacts = parse_artifact_document(document)
+                review_metadata = {}
+                if request.action == "review":
+                    approved = document.get("approved")
+                    if type(approved) is not bool:
+                        raise AIResponseValidationError(
+                            "Review response requires boolean approved."
+                        )
+                    review_metadata["approved"] = approved
                 return AIResponse(
                     provider=self.name,
                     action=request.action,
                     summary=summary,
                     artifacts=artifacts,
                     metadata={
+                        **review_metadata,
                         "model": model,
                         "usage": normalize_usage(usage),
                         "cost_usd": estimate_cost_usd(self.name, model, usage),
@@ -99,4 +113,9 @@ class BaseHTTPAIProvider(ABC):
 
     @staticmethod
     def user_prompt(request: AIRequest) -> str:
-        return f"Action: {request.action}\nTask ID: {request.task_id or 'none'}\nPrompt:\n{request.prompt}"
+        import json
+
+        return (
+            f"Action: {request.action}\nTask ID: {request.task_id or 'none'}\nPrompt:\n{request.prompt}"
+            f"\nContext:\n{json.dumps(request.context, ensure_ascii=False)}"
+        )

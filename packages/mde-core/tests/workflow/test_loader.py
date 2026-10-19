@@ -8,7 +8,7 @@ from mde.workflow.validator import WorkflowValidationError
 
 def test_lists_bundled_workflows(tmp_path: Path) -> None:
     names = [item.name for item in list_workflows(tmp_path)]
-    assert names == ["bugfix", "docs", "feature", "refactor"]
+    assert names == ["bugfix", "docs", "feature", "feature-local", "refactor"]
 
 
 def test_repository_workflow_overrides_bundled_workflow(tmp_path: Path) -> None:

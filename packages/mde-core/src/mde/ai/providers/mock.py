@@ -14,7 +14,9 @@ class MockAIProvider:
     name = "mock"
 
     def execute(self, request: AIRequest) -> AIResponse:
-        raw_artifacts = request.context.get("artifacts", ())
+        raw_artifacts = (
+            () if request.action == "review" else request.context.get("artifacts", ())
+        )
         artifacts: list[AIArtifact] = []
         if isinstance(raw_artifacts, Sequence) and not isinstance(
             raw_artifacts, (str, bytes)
@@ -45,5 +47,8 @@ class MockAIProvider:
             action=request.action,
             summary=summary,
             artifacts=tuple(artifacts),
-            metadata={"deterministic": True},
+            metadata={
+                "deterministic": True,
+                **({"approved": True} if request.action == "review" else {}),
+            },
         )

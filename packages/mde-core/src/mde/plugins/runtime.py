@@ -7,6 +7,7 @@ from mde.plugins.builtin import (
     TestingWorkflowPlugin,
 )
 from mde.plugins.manager import PluginManager
+from mde.plugins.builtin.deployment import LocalDeploymentPlugin
 from mde.workflow.registry import CommandRegistry
 
 
@@ -17,6 +18,7 @@ def create_runtime_plugin_manager() -> PluginManager:
             AIWorkflowPlugin(),
             TestingWorkflowPlugin(),
             GitWorkflowPlugin(),
+            LocalDeploymentPlugin(),
         )
     )
 

@@ -44,6 +44,12 @@ $env:MDE_LOCAL_MODEL = "your-model"
 
 Providers must return JSON with a non-empty `summary` and an `artifacts` array. Each artifact requires a relative `path` and string `content`. Unsafe paths are rejected before files are written or applied.
 
+For `review`, providers must also return an explicit JSON boolean `approved`. Missing,
+null, string, and numeric verdicts are rejected. `approved: false` stops the workflow
+before applying changes. The generated artifact contents are supplied in the review
+context and included in HTTP provider prompts. Mock review explicitly approves only
+for deterministic testing; it is not a real AI review.
+
 ## Reliability and usage
 
 `MDE_AI_TIMEOUT` controls request timeout. `MDE_AI_MAX_RETRIES` controls exponential retries for transport failures. Manifest metadata records model, normalized token usage, attempt count, and optional estimated cost.

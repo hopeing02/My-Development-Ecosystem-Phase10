@@ -1,6 +1,14 @@
 from pathlib import Path
+from dataclasses import replace
+
+import pytest
 
 from mde.plugins.builtin.ai import AIWorkflowPlugin
+from mde.ai.engine import AIEngine
+from mde.ai.providers.mock import MockAIProvider
+from mde.ai.registry import AIProviderRegistry
+from mde.workflow.executor import execute_workflow, WorkflowExecutionError
+from mde.workflow.models import WorkflowDefinition
 from mde.workflow.models import WorkflowContext, WorkflowStep
 from mde.workflow.registry import CommandRegistry
 
@@ -55,3 +63,59 @@ def test_apply_creates_backup_for_existing_file(tmp_path: Path) -> None:
 
     assert target.read_text() == "new"
     assert (tmp_path / ".mde/backups/TASK-2/apply/src/output.txt").read_text() == "old"
+
+
+@pytest.mark.parametrize("verdict", [None, False, "true", True])
+def test_review_requires_explicit_approval_and_receives_generated_content(
+    tmp_path: Path, monkeypatch, verdict
+) -> None:
+    target = tmp_path / "output.txt"
+    target.write_text("original", encoding="utf-8")
+    provider = MockAIProvider()
+    original = provider.execute
+
+    def response(request):
+        if request.action == "generate":
+            request = replace(
+                request,
+                context={
+                    "artifacts": [
+                        {"path": "output.txt", "content": "actual generated code"}
+                    ]
+                },
+            )
+        if request.action == "review":
+            assert request.context["artifacts"] == [
+                {"path": "output.txt", "content": "actual generated code"}
+            ]
+            return replace(original(request), metadata={"approved": verdict})
+        return original(request)
+
+    monkeypatch.setattr(provider, "execute", response)
+    providers = AIProviderRegistry()
+    providers.register(provider)
+    registry = CommandRegistry()
+    AIWorkflowPlugin(AIEngine(providers)).register(registry)
+    definition = WorkflowDefinition(
+        1,
+        "review",
+        "review gate",
+        (
+            WorkflowStep("generate", "ai.generate"),
+            WorkflowStep("review", "change.review", depends_on=("generate",)),
+            WorkflowStep("apply", "change.apply", depends_on=("review",)),
+        ),
+    )
+    context = WorkflowContext(
+        "review",
+        repository_root=tmp_path,
+        data={"inputs": {"ai": {"provider": "mock"}}},
+    )
+    if verdict is True:
+        assert execute_workflow(definition, context, registry).status == "completed"
+        assert target.read_text() == "actual generated code"
+    else:
+        with pytest.raises(WorkflowExecutionError) as caught:
+            execute_workflow(definition, context, registry)
+        assert caught.value.result.steps[-1].command == "change.review"
+        assert target.read_text() == "original"

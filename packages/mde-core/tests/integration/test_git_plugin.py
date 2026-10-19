@@ -1,4 +1,6 @@
 import subprocess
+import http.client
+import json
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -7,6 +9,7 @@ from mde.ai.providers.mock import MockAIProvider
 from mde.ai.registry import AIProviderRegistry
 from mde.automation.fix_loop import execute_workflow_with_fix_loop
 from mde.plugins.builtin.git import push_changes, save_changes
+from mde.plugins.builtin.deployment import manage_deployment
 from mde.plugins.runtime import create_runtime_registry
 from mde.workflow.loader import load_named_workflow
 from mde.workflow.models import WorkflowContext, WorkflowStep
@@ -68,6 +71,11 @@ def test_repaired_feature_runs_real_pytest_then_commits_and_pushes(
         "from answer import answer\n\ndef test_answer():\n    assert answer() == 42\n",
         encoding="utf-8",
     )
+    (work / "web.py").write_text(
+        "from fastapi import FastAPI\nfrom answer import answer\napp = FastAPI()\n"
+        '@app.get("/health")\ndef health():\n    return {"answer": answer()}\n',
+        encoding="utf-8",
+    )
     git(work, "add", ".")
     git(work, "commit", "-m", "seed acceptance test")
     before = git(work, "rev-parse", "HEAD")
@@ -106,19 +114,48 @@ def test_repaired_feature_runs_real_pytest_then_commits_and_pushes(
             "testing_command": [sys.executable, "-m", "pytest", "-q", "--noconftest"],
         },
     )
-    result = execute_workflow_with_fix_loop(
-        load_named_workflow("feature", work),
-        context,
-        create_runtime_registry(),
-        max_fix_attempts=1,
+    original = load_named_workflow("feature", work)
+    definition = replace(
+        original,
+        steps=original.steps[:-1]
+        + (
+            WorkflowStep(
+                "deploy",
+                "deploy.local",
+                depends_on=("push",),
+                args={"app": "web:app", "timeout": 10},
+            ),
+            replace(original.steps[-1], depends_on=("deploy",)),
+        ),
     )
-    assert result.status == "completed"
-    assert actions == ["generate", "review", "fix"]
-    assert context.outputs["test"]["return_code"] == 0
-    assert context.outputs["test"]["passed"] == 1
-    assert "1 failed" in (work / "logs/tests/ACCEPTANCE-REPAIR-test.log").read_text()
-    assert "1 passed" in Path(context.outputs["test"]["log_path"]).read_text()
-    assert git(work, "rev-parse", "HEAD") != before
-    assert git(remote, "rev-parse", "refs/heads/main") == git(work, "rev-parse", "HEAD")
-    assert git(work, "status", "--porcelain") == ""
-    assert result.steps[-1].step_id == "complete"
+    try:
+        result = execute_workflow_with_fix_loop(
+            definition,
+            context,
+            create_runtime_registry(),
+            max_fix_attempts=1,
+        )
+        assert result.status == "completed"
+        assert actions == ["generate", "review", "fix"]
+        assert context.outputs["test"]["return_code"] == 0
+        assert context.outputs["test"]["passed"] == 1
+        assert (
+            "1 failed" in (work / "logs/tests/ACCEPTANCE-REPAIR-test.log").read_text()
+        )
+        assert "1 passed" in Path(context.outputs["test"]["log_path"]).read_text()
+        assert git(work, "rev-parse", "HEAD") != before
+        assert git(remote, "rev-parse", "refs/heads/main") == git(
+            work, "rev-parse", "HEAD"
+        )
+        assert git(work, "status", "--porcelain") == ""
+        assert result.steps[-1].step_id == "complete"
+        connection = http.client.HTTPConnection(
+            "127.0.0.1", context.outputs["deploy"]["port"], timeout=2
+        )
+        try:
+            connection.request("GET", "/health")
+            assert json.loads(connection.getresponse().read()) == {"answer": 42}
+        finally:
+            connection.close()
+    finally:
+        manage_deployment(work, "stop")

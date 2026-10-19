@@ -2,7 +2,13 @@ from mde.plugins.runtime import create_runtime_plugin_manager, create_runtime_re
 
 
 def test_runtime_includes_ai_plugin() -> None:
-    assert create_runtime_plugin_manager().names() == ("core", "ai", "testing", "git")
+    assert create_runtime_plugin_manager().names() == (
+        "core",
+        "ai",
+        "testing",
+        "git",
+        "deployment",
+    )
 
 
 def test_runtime_registers_ai_commands() -> None:

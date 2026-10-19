@@ -62,6 +62,7 @@ def create_default_registry() -> CommandRegistry:
         "docs.generate",
         "refactor.plan",
         "bugfix.analyze",
+        "deploy.local",
     ):
         registry.register(command_id, _record_step)
     return registry

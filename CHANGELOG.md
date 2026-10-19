@@ -4,6 +4,9 @@
 
 ## Unreleased
 
+- Added explicit local FastAPI deployment with commit snapshots, loopback health checks, owned-process verification, rollback and stop. Added feature-local workflow inputs and bounded repair through the existing CLI, preserving the default feature/Task policies.
+- Replaced unconditional AI review approval with explicit boolean verdict validation and supplied generated artifact contents to review prompts. psutil 7.2.2 is the only added runtime dependency.
+
 - Fixed automatic repair returning completed before remaining workflow steps ran. Successful retests now resume the original workflow with its policies and checkpoint intact; downstream failures remain failures. Added an acceptance test using real pytest, artifact application, commit, and push to a temporary bare remote with a deterministic AI provider.
 
 - Clarified that generate/inbox and their parsed subcommands remain reserved. Preserved exit code 2 and no-write behavior, synchronized both managed CLI guides, and added regression checks for help and documentation drift.

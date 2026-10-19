@@ -186,11 +186,11 @@ uv run mde docs update --target knowledge-guide --apply
 | `mde inbox` | reserved | Reserved command: inbox (legacy patches). |
 | `mde knowledge` | implemented | Manage local Markdown knowledge sources and indexes. |
 | `mde codex` | implemented | Capture Windows Codex development sessions. |
+| `mde deploy` | implemented | Deploy and manage local FastAPI releases. |
 | `mde docs` | implemented | Check and safely update managed MDE documentation. |
 | `mde build` | reserved | Reserved command: build |
 | `mde release` | reserved | Reserved command: release |
 | `mde obsidian` | reserved | Reserved command: obsidian |
-| `mde deploy` | reserved | Reserved command: deploy |
 
 ### `mde new`
 
@@ -212,7 +212,7 @@ uv run mde docs update --target knowledge-guide --apply
 
 - `mde workflow list [-h]`
 - `mde workflow show [-h] workflow_name`
-- `mde workflow run [-h] [--message MESSAGE] [--task TASK_ID] [--runtime] workflow_name`
+- `mde workflow run [-h] [--inputs INPUTS] [--max-fix-attempts {0,1,2,3,4,5}] [--message MESSAGE] [--task TASK_ID] [--runtime] workflow_name`
 
 ### `mde task`
 
@@ -276,6 +276,13 @@ uv run mde docs update --target knowledge-guide --apply
 - `mde codex sessions doctor [-h]`
 - `mde codex doctor [-h]`
 
+### `mde deploy`
+
+- `mde deploy local [-h] --app APP [--app-dir APP_DIR] [--python PYTHON] [--health-path HEALTH_PATH] [--timeout TIMEOUT] [--name NAME]`
+- `mde deploy status [-h] [--name NAME]`
+- `mde deploy rollback [-h] [--name NAME]`
+- `mde deploy stop [-h] [--name NAME]`
+
 ### `mde docs`
 
 - `mde docs check [-h] [--target {mde-user-guide,knowledge-guide}]`
@@ -304,6 +311,41 @@ CLI 목록에 `reserved`로 표시되는 명령은 이름만 예약되어 있고
 ```
 
 문서 자동 갱신은 자동 커밋이나 push를 수행하지 않는다.
+
+## 로컬 FastAPI 배포
+
+`deploy`는 현재 PC의 loopback FastAPI 배포를 지원한다. 커밋된 코드와 깨끗한 작업
+트리만 사용하며, 의존성이 설치된 Python 경로를 지정한다. 새 후보의 프로세스·listen·
+health HTTP 200을 확인한 뒤 현재 배포를 바꾼다. 실패하면 기존 서비스는 유지한다.
+
+```powershell
+uv sync --project apps/autoknowledge-lite --extra test --python 3.12
+$capturePython = (Resolve-Path apps/autoknowledge-lite/.venv/Scripts/python.exe).Path
+uv run mde deploy local --name autoknowledge --app autoknowledge_lite.api:app --app-dir apps/autoknowledge-lite/src --python $capturePython --health-path /v1/status
+uv run mde deploy status --name autoknowledge
+uv run mde deploy rollback --name autoknowledge
+uv run mde deploy stop --name autoknowledge
+```
+
+출력의 `url`이 실제 주소다. 배포마다 새 포트를 사용하므로 고정 8000/8765 서비스를
+덮어쓰지 않는다. rollback은 살아 있는 이전 정상 프로세스를 현재 배포로 선택하며
+네트워크 프록시를 전환하지 않는다. 재부팅 자동 시작과 고정 URL은 아직 지원하지 않는다.
+환경변수는 자식 프로세스에 상속되지만 state JSON에는 비밀키·환경변수를 저장하지 않는다.
+개인 데이터가 있는 서비스는 DATA_DIR·VAULT_DIR을 snapshot 밖의 고정 경로로 지정한다.
+
+자동 개발부터 로컬 배포까지는 기존 기본 feature를 바꾸지 않는 `feature-local`을
+명시적으로 선택한다. 입력 JSON은 저장소 밖 또는 Git 제외 `.mde/`에 둔다.
+
+```powershell
+uv run mde workflow run feature-local --runtime --inputs .mde/local-inputs.json --max-fix-attempts 2 --message "지정 기능 구현"
+```
+
+입력은 `ai`(기존 provider 설정), `testing_command`(검증 명령), `deployment`(app,
+app_dir, python, health_path, name), `push`(boolean, 기본 false)로 구성한다.
+Git push를 요청하면 별도 Git 인증·원격 설정이 필요하다. 자동 수정은 0~5회로 제한된다.
+`--runtime`이 없으면 기존처럼 dry run이며 실제 배포는 하지 않는다.
+실제 AI 리뷰는 생성 파일 내용을 받고 JSON boolean `approved: true`일 때만 통과한다.
+거절·판정 누락은 적용 전에 중단된다. mock은 오프라인 검증 대역이며 실제 AI가 아니다.
 
 ## 16. 문제 해결
 

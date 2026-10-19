@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 import pytest
 
@@ -94,6 +95,45 @@ def test_provider_requires_api_key(tmp_path: Path, monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with pytest.raises(AIConfigurationError, match="OPENAI_API_KEY"):
         OpenAIProvider(max_retries=0).execute(request(tmp_path))
+
+
+@pytest.mark.parametrize("verdict", [None, False, "true", True])
+def test_http_review_verdict_is_explicit_and_context_is_sent(
+    tmp_path: Path, verdict
+) -> None:
+    transport = FakeTransport(
+        [
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "summary": "review",
+                                    "artifacts": [],
+                                    "approved": verdict,
+                                }
+                            )
+                        }
+                    }
+                ]
+            }
+        ]
+    )
+    provider = LocalLLMProvider(transport=transport, max_retries=0)
+    review = AIRequest(
+        action="review",
+        prompt="review code",
+        repository_root=tmp_path,
+        context={"artifacts": [{"path": "example.py", "content": "print(42)"}]},
+    )
+    if type(verdict) is bool:
+        assert provider.execute(review).metadata["approved"] is verdict
+    else:
+        with pytest.raises(AIResponseValidationError, match="boolean approved"):
+            provider.execute(review)
+    payload = transport.calls[0][2]
+    assert "print(42)" in json.dumps(payload)
 
 
 def test_provider_retries_transport_failure(tmp_path: Path):

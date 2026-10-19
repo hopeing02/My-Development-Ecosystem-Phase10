@@ -34,6 +34,22 @@ class AIWorkflowPlugin:
         self, action: str, context: WorkflowContext, step: WorkflowStep
     ) -> dict[str, Any]:
         provider, provider_context = self._ai_settings(context, step)
+        if action == "review":
+            source_manifest = self._find_manifest(context)
+            if source_manifest is None:
+                raise ArtifactError("Review requires generated artifacts.")
+            provider_context["artifacts"] = []
+            for artifact in load_manifest(source_manifest).get("artifacts", []):
+                relative = validate_relative_path(artifact["source_path"])
+                source = context.repository_root.joinpath(*relative.parts).resolve()
+                if not source.is_relative_to(context.repository_root.resolve()):
+                    raise ArtifactError("Review artifact escapes the repository.")
+                provider_context["artifacts"].append(
+                    {
+                        "path": artifact["target_path"],
+                        "content": source.read_text(encoding="utf-8"),
+                    }
+                )
         base_prompt = str(
             step.args.get("prompt")
             or context.data.get("description")
@@ -70,10 +86,17 @@ class AIWorkflowPlugin:
 
     def review(self, context: WorkflowContext, step: WorkflowStep) -> dict[str, Any]:
         result = self._execute_ai("review", context, step)
+        approved = result["metadata"].get("approved")
+        if type(approved) is not bool:
+            raise ArtifactError(
+                "AI review requires an explicit boolean approved verdict."
+            )
+        if not approved:
+            raise ArtifactError("AI review rejected generated changes.")
         source_manifest = self._find_manifest(context)
         if source_manifest is not None:
             result["source_manifest_path"] = str(source_manifest)
-        result["approved"] = True
+        result["approved"] = approved
         return result
 
     def fix(self, context: WorkflowContext, step: WorkflowStep) -> dict[str, Any]:

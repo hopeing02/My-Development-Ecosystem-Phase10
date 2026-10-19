@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -9,6 +10,7 @@ from pathlib import Path
 from mde.agent.runner import run_once, run_watch
 from mde.ai.errors import AIConfigurationError
 from mde.ai.engine import create_default_provider_registry
+from mde.automation.fix_loop import execute_workflow_with_fix_loop
 from mde.commands.apply import apply_patch, apply_task
 
 # from tools.mde_doctor import print_report, run_doctor
@@ -25,11 +27,13 @@ from mde.documentation import (
     preview_update,
     target_path as documentation_target_path,
 )
-from mde.workflow.executor import WorkflowExecutionError, execute_workflow
+from mde.workflow.executor import WorkflowExecutionError
 from mde.workflow.loader import list_workflows, load_named_workflow
 from mde.workflow.models import WorkflowContext
 from mde.workflow.registry import create_default_registry
 from mde.plugins.runtime import create_runtime_registry, create_runtime_plugin_manager
+from mde.plugins.builtin.deployment import register_parser as register_deploy_parser
+from mde.plugins.builtin.deployment import run as run_deploy_command
 from mde.task.executor import execute_task
 from mde.task.store import TaskStore
 from mde.sync import SyncPolicy, run_mobile_sync
@@ -75,6 +79,7 @@ IMPLEMENTED_COMMANDS = frozenset(
         "knowledge",
         "codex",
         "docs",
+        "deploy",
     }
 )
 
@@ -220,6 +225,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     workflow_run_parser.add_argument("workflow_name", help="Workflow name.")
     workflow_run_parser.add_argument(
+        "--inputs", type=Path, help="Local JSON workflow inputs file."
+    )
+    workflow_run_parser.add_argument(
+        "--max-fix-attempts", type=int, choices=range(6), default=0
+    )
+    workflow_run_parser.add_argument(
         "--message", default="", help="Message made available through WorkflowContext."
     )
     workflow_run_parser.add_argument(
@@ -318,6 +329,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     register_knowledge_parser(subparsers)
     register_codex_parser(subparsers)
+    register_deploy_parser(subparsers)
 
     docs_parser = subparsers.add_parser(
         "docs",
@@ -454,19 +466,42 @@ def run_workflow_command(args: argparse.Namespace) -> int:
 
     if args.workflow_action == "run":
         workflow = load_named_workflow(args.workflow_name, Path.cwd())
+        inputs = {}
+        if args.inputs is not None:
+            try:
+                inputs = json.loads(args.inputs.read_text(encoding="utf-8-sig"))
+            except (OSError, ValueError) as error:
+                raise RuntimeError(f"Cannot read workflow inputs: {error}") from error
+            if not isinstance(inputs, dict) or not isinstance(
+                inputs.get("push", False), bool
+            ):
+                raise RuntimeError(
+                    "Workflow inputs must be an object with a boolean push policy."
+                )
+        if args.max_fix_attempts and not args.runtime:
+            raise RuntimeError("Automatic repair requires --runtime.")
         context = WorkflowContext(
             workflow_name=workflow.name,
             message=args.message,
             repository_root=Path.cwd(),
             task_id=args.task_id,
+            data={
+                "inputs": inputs,
+                "testing_command": inputs.get("testing_command"),
+                "push_enabled": inputs.get("push", False),
+            },
         )
         registry = (
             create_runtime_registry() if args.runtime else create_default_registry()
         )
-        result = execute_workflow(workflow, context, registry)
+        result = execute_workflow_with_fix_loop(
+            workflow, context, registry, max_fix_attempts=args.max_fix_attempts
+        )
         print(f"Workflow completed: {result.workflow_name}")
         for step in result.steps:
             print(f"[{step.status}] {step.step_id}: {step.command}")
+            if step.command == "deploy.local" and "url" in step.outputs:
+                print(f"Deployment URL: {step.outputs['url']}")
         return 0
 
     print("Use workflow list, workflow show NAME, or workflow run NAME.")
@@ -732,6 +767,8 @@ def main(argv: list[str] | None = None) -> int:
             return run_codex_command(args)
         if args.command == "docs":
             return run_docs_command(args, parser)
+        if args.command == "deploy":
+            return run_deploy_command(args)
 
         if args.command == "agent":
             if args.once:
