@@ -8,6 +8,7 @@ from mde.ai.artifacts import write_response_bundle
 from mde.ai.models import AIRequest, AIResponse
 from mde.ai.providers import (
     ClaudeProvider,
+    CodexCLIProvider,
     GeminiProvider,
     LocalLLMProvider,
     MockAIProvider,
@@ -51,6 +52,7 @@ class AIEngine:
 def create_default_provider_registry() -> AIProviderRegistry:
     registry = AIProviderRegistry()
     registry.register(MockAIProvider())
+    registry.register(CodexCLIProvider())
     registry.register(OpenAIProvider())
     registry.register(ClaudeProvider())
     registry.register(GeminiProvider())

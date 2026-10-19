@@ -9,6 +9,7 @@ from mde.ai.engine import AIEngine, create_default_provider_registry
 def test_default_provider_registry_contains_mock() -> None:
     assert create_default_provider_registry().names() == (
         "claude",
+        "codex",
         "gemini",
         "local",
         "mock",

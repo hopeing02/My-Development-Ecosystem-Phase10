@@ -1,5 +1,7 @@
 # TEST
 
+- `TEST-020-codex-cli-provider.md` — 실제 Codex 생성·리뷰·실패 수정·테스트·배포 검증
+
 테스트 · 계획과 결과
 
 이 디렉터리의 문서는 MDE 문서 흐름과 ID 규칙을 따릅니다.

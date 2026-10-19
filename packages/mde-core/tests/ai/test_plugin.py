@@ -13,6 +13,54 @@ from mde.workflow.models import WorkflowContext, WorkflowStep
 from mde.workflow.registry import CommandRegistry
 
 
+def test_fix_receives_current_source_and_actual_failed_test_log(tmp_path, monkeypatch):
+    import sys
+    from mde.plugins.builtin.testing import run_tests, TestExecutionError
+
+    (tmp_path / "service.py").write_text("broken source", encoding="utf-8")
+    context = WorkflowContext(
+        "context",
+        repository_root=tmp_path,
+        data={
+            "inputs": {"ai": {"context_files": ["service.py"]}},
+            "testing_command": [
+                sys.executable,
+                "-c",
+                "import sys;print('actual assertion failure');sys.exit(1)",
+            ],
+        },
+    )
+    with pytest.raises(TestExecutionError):
+        run_tests(context, WorkflowStep("test", "test.run"))
+    provider = MockAIProvider()
+    original = provider.execute
+
+    def response(request):
+        assert request.context["files"] == [
+            {"path": "service.py", "content": "broken source"}
+        ]
+        assert "actual assertion failure" in request.context["test_failure_log"]
+        return original(request)
+
+    monkeypatch.setattr(provider, "execute", response)
+    providers = AIProviderRegistry()
+    providers.register(provider)
+    AIWorkflowPlugin(AIEngine(providers)).fix(context, WorkflowStep("fix", "ai.fix"))
+
+
+@pytest.mark.parametrize("paths", [["../outside"], ["missing"], ["x"] * 21, "not-list"])
+def test_context_files_reject_invalid_inputs(tmp_path, paths):
+    context = WorkflowContext(
+        "context",
+        repository_root=tmp_path,
+        data={"inputs": {"ai": {"context_files": paths}}},
+    )
+    from mde.ai.artifacts import ArtifactError
+
+    with pytest.raises(ArtifactError):
+        AIWorkflowPlugin().generate(context, WorkflowStep("generate", "ai.generate"))
+
+
 def test_ai_plugin_generate_and_apply(tmp_path: Path) -> None:
     registry = CommandRegistry()
     AIWorkflowPlugin().register(registry)

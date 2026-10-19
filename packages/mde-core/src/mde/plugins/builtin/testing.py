@@ -74,6 +74,7 @@ def run_tests(context: WorkflowContext, step: WorkflowStep) -> dict[str, Any]:
         log_path=log_path,
     )
     if completed.returncode != 0:
+        context.data["last_test_log_path"] = str(log_path)
         raise TestExecutionError(
             f"Tests failed with exit code {completed.returncode}. Log: {log_path}"
         )

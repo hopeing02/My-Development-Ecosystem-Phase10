@@ -5,6 +5,7 @@ def test_ai_list_command(capsys) -> None:
     assert main(["ai", "list"]) == 0
     assert capsys.readouterr().out.strip().splitlines() == [
         "claude",
+        "codex",
         "gemini",
         "local",
         "mock",

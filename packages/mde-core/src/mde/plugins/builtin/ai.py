@@ -34,6 +34,43 @@ class AIWorkflowPlugin:
         self, action: str, context: WorkflowContext, step: WorkflowStep
     ) -> dict[str, Any]:
         provider, provider_context = self._ai_settings(context, step)
+        ai_input = context.data.get("inputs", {}).get("ai", {})
+        context_files = (
+            ai_input.get("context_files", []) if isinstance(ai_input, dict) else []
+        )
+        if not isinstance(context_files, list) or len(context_files) > 20:
+            raise ArtifactError("ai.context_files must be a list of at most 20 paths.")
+        provider_context["files"] = []
+        total_size = 0
+        for raw in context_files:
+            relative = validate_relative_path(str(raw))
+            source = context.repository_root.joinpath(*relative.parts).resolve()
+            if not source.is_relative_to(context.repository_root.resolve()):
+                raise ArtifactError("Context file escapes the repository.")
+            if not source.is_file() or source.stat().st_size > 65536:
+                raise ArtifactError("Context files must exist and be at most 64KiB.")
+            total_size += source.stat().st_size
+            if total_size > 262144:
+                raise ArtifactError("Context files exceed 256KiB.")
+            provider_context["files"].append(
+                {
+                    "path": relative.as_posix(),
+                    "content": source.read_text(encoding="utf-8"),
+                }
+            )
+        if action == "fix" and context.data.get("last_test_log_path"):
+            log = Path(context.data["last_test_log_path"]).resolve()
+            if not log.is_relative_to(
+                context.repository_root.resolve() / "logs" / "tests"
+            ):
+                raise ArtifactError(
+                    "Test log must remain inside repository logs/tests."
+                )
+            with log.open("rb") as stream:
+                stream.seek(max(0, log.stat().st_size - 65536))
+                provider_context["test_failure_log"] = stream.read().decode(
+                    "utf-8", errors="replace"
+                )
         if action == "review":
             source_manifest = self._find_manifest(context)
             if source_manifest is None:

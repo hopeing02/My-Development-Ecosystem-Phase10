@@ -4,6 +4,9 @@
 
 ## Unreleased
 
+- 기존 Codex CLI Provider와 명시적 코드 문맥·실제 실패 로그 전달을 추가했다.
+- 실제 Codex 생성·리뷰·수정부터 pytest·커밋·로컬 배포까지 검증했다.
+
 - Added explicit local FastAPI deployment with commit snapshots, loopback health checks, owned-process verification, rollback and stop. Added feature-local workflow inputs and bounded repair through the existing CLI, preserving the default feature/Task policies.
 - Replaced unconditional AI review approval with explicit boolean verdict validation and supplied generated artifact contents to review prompts. psutil 7.2.2 is the only added runtime dependency.
 

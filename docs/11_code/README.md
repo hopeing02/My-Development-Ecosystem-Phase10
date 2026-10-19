@@ -1,5 +1,7 @@
 # CODE
 
+- `CODE-014-codex-cli-provider.md` — 기존 Codex CLI Provider와 실제 자동 개발 연결
+
 구현 · 코드 기준 및 구현 이력
 
 이 디렉터리의 문서는 MDE 문서 흐름과 ID 규칙을 따릅니다.
