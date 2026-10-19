@@ -17,7 +17,9 @@ class CommandRegistry:
     def __init__(self) -> None:
         self._handlers: dict[str, CommandHandler] = {}
 
-    def register(self, command_id: str, handler: CommandHandler, *, replace: bool = False) -> None:
+    def register(
+        self, command_id: str, handler: CommandHandler, *, replace: bool = False
+    ) -> None:
         if not command_id.strip():
             raise ValueError("command_id must not be empty.")
         if command_id in self._handlers and not replace:

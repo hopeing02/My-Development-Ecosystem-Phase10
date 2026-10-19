@@ -147,7 +147,9 @@ def pull(repository_root: Path | None = None) -> None:
     pull_fast_forward(repository_root=repository_root)
 
 
-def add(paths: Sequence[str] | None = None, repository_root: Path | None = None) -> None:
+def add(
+    paths: Sequence[str] | None = None, repository_root: Path | None = None
+) -> None:
     selected = tuple(paths or (".",))
     run_git("add", "--", *selected, repository_root=repository_root)
 

@@ -22,17 +22,23 @@ def extract_json_object(text: str) -> dict[str, Any]:
         start = stripped.find("{")
         end = stripped.rfind("}")
         if start < 0 or end <= start:
-            raise AIResponseValidationError("AI response does not contain valid JSON.") from error
+            raise AIResponseValidationError(
+                "AI response does not contain valid JSON."
+            ) from error
         try:
             value = json.loads(stripped[start : end + 1])
         except json.JSONDecodeError as nested:
-            raise AIResponseValidationError("AI response JSON could not be parsed.") from nested
+            raise AIResponseValidationError(
+                "AI response JSON could not be parsed."
+            ) from nested
     if not isinstance(value, dict):
         raise AIResponseValidationError("AI response JSON must be an object.")
     return value
 
 
-def parse_artifact_document(document: dict[str, Any]) -> tuple[str, tuple[AIArtifact, ...]]:
+def parse_artifact_document(
+    document: dict[str, Any],
+) -> tuple[str, tuple[AIArtifact, ...]]:
     summary = document.get("summary", "")
     if not isinstance(summary, str) or not summary.strip():
         raise AIResponseValidationError("AI response requires a non-empty summary.")
@@ -48,7 +54,11 @@ def parse_artifact_document(document: dict[str, Any]) -> tuple[str, tuple[AIArti
         if not isinstance(path, str) or not path.strip():
             raise AIResponseValidationError(f"Artifact {index} requires path.")
         if not isinstance(content, str):
-            raise AIResponseValidationError(f"Artifact {index} requires string content.")
+            raise AIResponseValidationError(
+                f"Artifact {index} requires string content."
+            )
         media_type = item.get("media_type", "text/plain")
-        artifacts.append(AIArtifact(path=path, content=content, media_type=str(media_type)))
+        artifacts.append(
+            AIArtifact(path=path, content=content, media_type=str(media_type))
+        )
     return summary.strip(), tuple(artifacts)

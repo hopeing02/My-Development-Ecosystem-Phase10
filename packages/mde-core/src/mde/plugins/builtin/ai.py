@@ -17,7 +17,9 @@ class AIWorkflowPlugin:
         self.engine = engine or AIEngine()
 
     @staticmethod
-    def _ai_settings(context: WorkflowContext, step: WorkflowStep) -> tuple[str | None, dict[str, Any]]:
+    def _ai_settings(
+        context: WorkflowContext, step: WorkflowStep
+    ) -> tuple[str | None, dict[str, Any]]:
         inputs = context.data.get("inputs", {})
         ai_input = inputs.get("ai", {}) if isinstance(inputs, dict) else {}
         if not isinstance(ai_input, dict):
@@ -28,9 +30,16 @@ class AIWorkflowPlugin:
             artifacts = inputs.get("artifacts", [])
         return (str(provider) if provider else None, {"artifacts": artifacts or []})
 
-    def _execute_ai(self, action: str, context: WorkflowContext, step: WorkflowStep) -> dict[str, Any]:
+    def _execute_ai(
+        self, action: str, context: WorkflowContext, step: WorkflowStep
+    ) -> dict[str, Any]:
         provider, provider_context = self._ai_settings(context, step)
-        base_prompt = str(step.args.get("prompt") or context.data.get("description") or context.message or step.id)
+        base_prompt = str(
+            step.args.get("prompt")
+            or context.data.get("description")
+            or context.message
+            or step.id
+        )
         if action == "fix":
             error = str(context.data.get("last_test_error") or "Unknown test failure")
             attempt = int(context.data.get("fix_attempt", 1))
@@ -85,11 +94,19 @@ class AIWorkflowPlugin:
     def apply(self, context: WorkflowContext, step: WorkflowStep) -> dict[str, Any]:
         manifest_path = self._find_manifest(context)
         if manifest_path is None:
-            raise ArtifactError("No generated AI artifact manifest is available to apply.")
+            raise ArtifactError(
+                "No generated AI artifact manifest is available to apply."
+            )
 
         manifest = load_manifest(manifest_path)
         changed_files: list[str] = []
-        backup_root = context.repository_root / ".mde" / "backups" / (context.task_id or context.workflow_name) / step.id
+        backup_root = (
+            context.repository_root
+            / ".mde"
+            / "backups"
+            / (context.task_id or context.workflow_name)
+            / step.id
+        )
 
         for item in manifest.get("artifacts", []):
             if not isinstance(item, dict):

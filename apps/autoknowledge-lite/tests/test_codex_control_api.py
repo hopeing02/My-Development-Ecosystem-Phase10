@@ -226,6 +226,5 @@ def test_mobile_capture_sync_finalize_status(tmp_path: Path, monkeypatch) -> Non
     assert finalized.json()["state"] == "SAVED"
     assert finalized.json()["revision"] == 2
     assert finalized.json()["viewerUrl"] == (
-        "http://100.75.235.67:8765/"
-        "?sourceId=autoknowledge-vault&documentId=doc-1"
+        "http://100.75.235.67:8765/" "?sourceId=autoknowledge-vault&documentId=doc-1"
     )

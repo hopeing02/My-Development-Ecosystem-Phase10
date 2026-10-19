@@ -33,21 +33,31 @@ def _parse_step(raw: Any, index: int) -> WorkflowStep:
     depends_on = raw.get("depends_on", [])
     if depends_on is None:
         depends_on = []
-    if not isinstance(depends_on, list) or not all(isinstance(item, str) for item in depends_on):
-        raise WorkflowValidationError(f"steps[{index}].depends_on must be a list of strings.")
+    if not isinstance(depends_on, list) or not all(
+        isinstance(item, str) for item in depends_on
+    ):
+        raise WorkflowValidationError(
+            f"steps[{index}].depends_on must be a list of strings."
+        )
 
     timeout = raw.get("timeout")
     if timeout is not None and (not isinstance(timeout, int) or timeout <= 0):
-        raise WorkflowValidationError(f"steps[{index}].timeout must be a positive integer.")
+        raise WorkflowValidationError(
+            f"steps[{index}].timeout must be a positive integer."
+        )
 
     retry = raw.get("retry", 0)
     if not isinstance(retry, int) or retry < 0:
-        raise WorkflowValidationError(f"steps[{index}].retry must be a non-negative integer.")
+        raise WorkflowValidationError(
+            f"steps[{index}].retry must be a non-negative integer."
+        )
 
     for bool_field in ("enabled", "continue_on_error"):
         value = raw.get(bool_field, True if bool_field == "enabled" else False)
         if not isinstance(value, bool):
-            raise WorkflowValidationError(f"steps[{index}].{bool_field} must be boolean.")
+            raise WorkflowValidationError(
+                f"steps[{index}].{bool_field} must be boolean."
+            )
 
     condition = raw.get("condition")
     if condition is not None and not isinstance(condition, str):

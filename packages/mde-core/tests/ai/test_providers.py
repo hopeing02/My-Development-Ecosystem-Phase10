@@ -2,7 +2,11 @@ from pathlib import Path
 
 import pytest
 
-from mde.ai.errors import AIConfigurationError, AIResponseValidationError, AITransportError
+from mde.ai.errors import (
+    AIConfigurationError,
+    AIResponseValidationError,
+    AITransportError,
+)
 from mde.ai.models import AIRequest
 from mde.ai.providers.claude import ClaudeProvider
 from mde.ai.providers.gemini import GeminiProvider
@@ -31,15 +35,53 @@ def request(tmp_path: Path):
 @pytest.mark.parametrize(
     ("provider", "response"),
     [
-        (OpenAIProvider, {"output_text": '{"summary":"ok","artifacts":[{"path":"a.txt","content":"A"}]}', "usage": {"input_tokens": 2, "output_tokens": 3}}),
-        (ClaudeProvider, {"content": [{"type": "text", "text": '{"summary":"ok","artifacts":[]}'}], "usage": {"input_tokens": 2, "output_tokens": 3}}),
-        (GeminiProvider, {"candidates": [{"content": {"parts": [{"text": '{"summary":"ok","artifacts":[]}'}]}}], "usageMetadata": {"promptTokenCount": 2, "candidatesTokenCount": 3}}),
-        (LocalLLMProvider, {"choices": [{"message": {"content": '{"summary":"ok","artifacts":[]}'}}], "usage": {"prompt_tokens": 2, "completion_tokens": 3}}),
+        (
+            OpenAIProvider,
+            {
+                "output_text": '{"summary":"ok","artifacts":[{"path":"a.txt","content":"A"}]}',
+                "usage": {"input_tokens": 2, "output_tokens": 3},
+            },
+        ),
+        (
+            ClaudeProvider,
+            {
+                "content": [
+                    {"type": "text", "text": '{"summary":"ok","artifacts":[]}'}
+                ],
+                "usage": {"input_tokens": 2, "output_tokens": 3},
+            },
+        ),
+        (
+            GeminiProvider,
+            {
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [{"text": '{"summary":"ok","artifacts":[]}'}]
+                        }
+                    }
+                ],
+                "usageMetadata": {"promptTokenCount": 2, "candidatesTokenCount": 3},
+            },
+        ),
+        (
+            LocalLLMProvider,
+            {
+                "choices": [
+                    {"message": {"content": '{"summary":"ok","artifacts":[]}'}}
+                ],
+                "usage": {"prompt_tokens": 2, "completion_tokens": 3},
+            },
+        ),
     ],
 )
-def test_provider_parses_structured_response(tmp_path: Path, provider, response, monkeypatch):
+def test_provider_parses_structured_response(
+    tmp_path: Path, provider, response, monkeypatch
+):
     transport = FakeTransport([response])
-    instance = provider(transport=transport, api_key="key", model="model", max_retries=0)
+    instance = provider(
+        transport=transport, api_key="key", model="model", max_retries=0
+    )
     if provider is LocalLLMProvider:
         monkeypatch.setenv("MDE_LOCAL_BASE_URL", "http://localhost/v1/chat/completions")
     result = instance.execute(request(tmp_path))
@@ -55,17 +97,23 @@ def test_provider_requires_api_key(tmp_path: Path, monkeypatch):
 
 
 def test_provider_retries_transport_failure(tmp_path: Path):
-    transport = FakeTransport([
-        AITransportError("temporary"),
-        {"output_text": '{"summary":"recovered","artifacts":[]}'},
-    ])
-    result = OpenAIProvider(transport=transport, api_key="key", model="model", max_retries=1, retry_delay=0).execute(request(tmp_path))
+    transport = FakeTransport(
+        [
+            AITransportError("temporary"),
+            {"output_text": '{"summary":"recovered","artifacts":[]}'},
+        ]
+    )
+    result = OpenAIProvider(
+        transport=transport, api_key="key", model="model", max_retries=1, retry_delay=0
+    ).execute(request(tmp_path))
     assert result.summary == "recovered"
     assert result.metadata["attempts"] == 2
     assert len(transport.calls) == 2
 
 
 def test_invalid_artifact_document_is_rejected(tmp_path: Path):
-    transport = FakeTransport([{"output_text": '{"summary":"","artifacts":[]}' }])
+    transport = FakeTransport([{"output_text": '{"summary":"","artifacts":[]}'}])
     with pytest.raises(AIResponseValidationError):
-        OpenAIProvider(transport=transport, api_key="key", model="model", max_retries=0).execute(request(tmp_path))
+        OpenAIProvider(
+            transport=transport, api_key="key", model="model", max_retries=0
+        ).execute(request(tmp_path))

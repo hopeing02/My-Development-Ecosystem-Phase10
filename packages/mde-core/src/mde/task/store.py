@@ -38,7 +38,11 @@ class TaskStore:
 
     def list(self, status: str = "pending") -> list[TaskDefinition]:
         directory = self._status_dir(status)
-        return [load_task(path) for path in sorted(directory.glob("*.yaml")) if not path.name.endswith(".result.yaml")]
+        return [
+            load_task(path)
+            for path in sorted(directory.glob("*.yaml"))
+            if not path.name.endswith(".result.yaml")
+        ]
 
     def find(self, task_id: str) -> tuple[str, Path] | None:
         for status in ("pending", "processing", "completed", "failed"):
@@ -46,7 +50,11 @@ class TaskStore:
             direct = directory / f"{task_id}.yaml"
             if direct.is_file():
                 return status, direct
-            matches = [p for p in directory.glob("*.yaml") if not p.name.endswith(".result.yaml")]
+            matches = [
+                p
+                for p in directory.glob("*.yaml")
+                if not p.name.endswith(".result.yaml")
+            ]
             for path in matches:
                 try:
                     if load_task(path).task_id == task_id:
@@ -73,14 +81,15 @@ class TaskStore:
     def fail(self, task: TaskDefinition, result: TaskResult) -> Path:
         return self._finish(task, result, "failed")
 
-
     def retry(self, task_id: str) -> Path:
         found = self.find(task_id)
         if found is None:
             raise TaskStoreError(f"Task not found: {task_id}")
         status, source = found
         if status != "failed":
-            raise TaskStoreError(f"Only failed tasks can be retried: {task_id} ({status})")
+            raise TaskStoreError(
+                f"Only failed tasks can be retried: {task_id} ({status})"
+            )
         destination = self.dirs.pending / source.name
         if destination.exists():
             raise TaskStoreError(f"Pending task already exists: {destination}")
@@ -96,7 +105,9 @@ class TaskStore:
                 continue
             destination = self.dirs.failed / path.name
             if destination.exists():
-                raise TaskStoreError(f"Cannot recover task; destination exists: {destination}")
+                raise TaskStoreError(
+                    f"Cannot recover task; destination exists: {destination}"
+                )
             shutil.move(str(path), str(destination))
             recovered.append(destination)
         return recovered
@@ -124,7 +135,10 @@ class TaskStore:
                 "last_successful_step": result.last_successful_step,
             },
         }
-        result_path.write_text(yaml.safe_dump(payload, sort_keys=False, allow_unicode=True), encoding="utf-8")
+        result_path.write_text(
+            yaml.safe_dump(payload, sort_keys=False, allow_unicode=True),
+            encoding="utf-8",
+        )
         return result_path
 
     def _status_dir(self, status: str) -> Path:

@@ -112,9 +112,7 @@ def test_client_searches_documents_and_links_child_with_json_contract() -> None:
 
     client = MDEKnowledgeClient(["mde"], runner=runner)
     documents = client.search_documents("personal", "상위", limit=10)
-    linked = client.link_child(
-        "personal", "ks-002::Parent.md", "ks-002::Child.md"
-    )
+    linked = client.link_child("personal", "ks-002::Parent.md", "ks-002::Child.md")
 
     assert documents[0].title == "상위 주제"
     assert documents[0].relative_path == "Parent.md"

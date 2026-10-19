@@ -116,9 +116,7 @@ def register_parser(
     link_child_parser.add_argument("--parent", required=True)
     link_child_parser.add_argument("--target", required=True)
     link_child_parser.add_argument("--confirm-sensitive", action="store_true")
-    link_child_parser.add_argument(
-        "--format", dest="output_format", choices=("json",)
-    )
+    link_child_parser.add_argument("--format", dest="output_format", choices=("json",))
 
     backlinks_parser = actions.add_parser(
         "backlinks", help="Show same-source backlinks."

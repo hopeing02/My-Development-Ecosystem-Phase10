@@ -52,8 +52,7 @@ class KnowledgeRepository:
     def _create_schema(
         self, connection: sqlite3.Connection, *, force_like_search: bool
     ) -> None:
-        connection.executescript(
-            """
+        connection.executescript("""
             CREATE TABLE IF NOT EXISTS knowledge_sources (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL UNIQUE,
@@ -133,8 +132,7 @@ class KnowledgeRepository:
                 ON knowledge_tags(source_id, tag);
             CREATE INDEX IF NOT EXISTS idx_links_source_target
                 ON knowledge_links(source_id, target);
-            """
-        )
+            """)
         columns = {
             str(row["name"])
             for row in connection.execute("PRAGMA table_info(knowledge_links)")
@@ -187,16 +185,14 @@ class KnowledgeRepository:
             self.fts_enabled = False
             return
         try:
-            connection.execute(
-                """
+            connection.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_fts USING fts5(
                     document_id UNINDEXED,
                     title,
                     relative_path,
                     content
                 )
-                """
-            )
+                """)
             self.fts_enabled = True
         except sqlite3.OperationalError:
             self.fts_enabled = False
@@ -231,9 +227,11 @@ class KnowledgeRepository:
                     source.sensitive,
                     source.allow_agent_access,
                     source.created_at.isoformat(),
-                    source.last_scanned_at.isoformat()
-                    if source.last_scanned_at
-                    else None,
+                    (
+                        source.last_scanned_at.isoformat()
+                        if source.last_scanned_at
+                        else None
+                    ),
                     source.allow_as_shared_link_target,
                 ),
             )
@@ -437,18 +435,14 @@ class KnowledgeRepository:
         """Resolve local links and explicit links to approved shared sources."""
 
         with self._connect() as connection:
-            source_rows = connection.execute(
-                """
+            source_rows = connection.execute("""
                 SELECT id, name, enabled, allow_as_shared_link_target
                 FROM knowledge_sources
-                """
-            ).fetchall()
-            documents = connection.execute(
-                """
+                """).fetchall()
+            documents = connection.execute("""
                 SELECT id, source_id, relative_path, title, aliases
                 FROM knowledge_documents
-                """
-            ).fetchall()
+                """).fetchall()
             links = connection.execute(
                 """
                 SELECT l.id, l.source_document_id,
@@ -469,7 +463,15 @@ class KnowledgeRepository:
                 source_by_reference[str(row["id"]).casefold()] = value
                 source_by_reference[str(row["name"]).casefold()] = value
 
-            maps: dict[str, tuple[dict[str, set[str]], dict[str, set[str]], dict[str, set[str]], dict[str, set[str]]]] = {}
+            maps: dict[
+                str,
+                tuple[
+                    dict[str, set[str]],
+                    dict[str, set[str]],
+                    dict[str, set[str]],
+                    dict[str, set[str]],
+                ],
+            ] = {}
             for document in documents:
                 document_id = str(document["id"])
                 document_source_id = str(document["source_id"])
@@ -519,9 +521,10 @@ class KnowledgeRepository:
                 )
                 source_directory = posixpath.dirname(str(link["source_path"]))
                 path_candidates = [self._path_key(raw_target)]
-                if not explicit_source and (link_type == "internal_markdown" or raw_target.startswith(
-                    (".", "..")
-                )):
+                if not explicit_source and (
+                    link_type == "internal_markdown"
+                    or raw_target.startswith((".", ".."))
+                ):
                     path_candidates.insert(
                         0,
                         self._path_key(posixpath.join(source_directory, raw_target)),
@@ -609,19 +612,27 @@ class KnowledgeRepository:
                        s.category
                 FROM knowledge_documents d
                 JOIN knowledge_sources s ON s.id = d.source_id
-                WHERE """ + condition + """
+                WHERE """
+                + condition
+                + """
                 ORDER BY d.title COLLATE NOCASE, d.relative_path COLLATE NOCASE
                 """,
                 parameters,
             ).fetchall()
             document_ids = tuple(str(row["id"]) for row in document_rows)
             tag_placeholders = ",".join("?" for _ in document_ids)
-            tag_rows = connection.execute(
-                """
+            tag_rows = (
+                connection.execute(
+                    """
                 SELECT document_id, tag FROM knowledge_tags
-                WHERE document_id IN (""" + tag_placeholders + ") ORDER BY tag COLLATE NOCASE",
-                document_ids,
-            ).fetchall() if document_ids else []
+                WHERE document_id IN ("""
+                    + tag_placeholders
+                    + ") ORDER BY tag COLLATE NOCASE",
+                    document_ids,
+                ).fetchall()
+                if document_ids
+                else []
+            )
         tags: dict[str, list[str]] = {}
         for row in tag_rows:
             tags.setdefault(str(row["document_id"]), []).append(str(row["tag"]))

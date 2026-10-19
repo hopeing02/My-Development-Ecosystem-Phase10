@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+- Declared and locked Black 26.10.1 for the existing save validation workflow.
+- Aligned the mde-core package and AutoKnowledge Lite lock metadata with runtime 0.10.0 and added regression checks for both installation paths.
+- Restored the Black formatting baseline across 67 existing Python files without changing their AST or comment text. Full Black, Ruff, Python regression, and lock consistency checks passed; see CODE-008 and TEST-014.
+
 - Added automatic Obsidian aliases, normalized tags, MOC links, graph settings, templates, and Bases for the personal Vault.
 
 - Added AutoKnowledge Lite 0.2.1 PC clipboard and fixed-folder capture page at `/pc`.

@@ -6,6 +6,9 @@
 
 ## 문서 목록
 
+- `TEST-013-validation-environment-recovery.md` — 개발 재개 회귀검증과 Black 미통과 기록
+- `TEST-014-black-baseline-recovery.md` — 서식 변경의 AST·주석 동일성 및 전체 회귀 PASS
+
 - `TEST-001-operational-record-rules.md` — 운영 기록 규칙 검증
 - `TEST-002-knowledge-plugin-v1.md` — Knowledge Plugin v1 검증
 - `TEST-012-knowledge-graph-integration.md` — Graph API, Viewer와 CLI 연동 검증

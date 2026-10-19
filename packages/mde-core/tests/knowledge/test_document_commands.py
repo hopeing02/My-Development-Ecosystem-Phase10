@@ -3,19 +3,28 @@ from pathlib import Path
 
 import pytest
 
-from mde.knowledge.document_commands import DocumentUpdate, KnowledgeDocumentCommandService
+from mde.knowledge.document_commands import (
+    DocumentUpdate,
+    KnowledgeDocumentCommandService,
+)
 from mde.knowledge.errors import KnowledgeContractError
 from mde.knowledge.parser import parse_markdown
 from mde.knowledge.service import KnowledgeService
 
 
-def _indexed_service(tmp_path: Path, first_content: str) -> tuple[KnowledgeService, Path, str, str]:
+def _indexed_service(
+    tmp_path: Path, first_content: str
+) -> tuple[KnowledgeService, Path, str, str]:
     root = tmp_path / "vault"
     root.mkdir()
     first = root / "첫 문서.md"
     first.write_text(first_content, encoding="utf-8")
-    (root / "대상 문서.md").write_text("---\ntitle: 대상 문서\n---\n# 대상 문서\n", encoding="utf-8")
-    service = KnowledgeService(registry_path=tmp_path / "sources.json", database_path=tmp_path / "knowledge.db")
+    (root / "대상 문서.md").write_text(
+        "---\ntitle: 대상 문서\n---\n# 대상 문서\n", encoding="utf-8"
+    )
+    service = KnowledgeService(
+        registry_path=tmp_path / "sources.json", database_path=tmp_path / "knowledge.db"
+    )
     source = service.add_source(root, name="개발", category="development")
     service.scan_source(source.id)
     first_id = f"{source.id}::첫 문서.md"
@@ -23,7 +32,9 @@ def _indexed_service(tmp_path: Path, first_content: str) -> tuple[KnowledgeServi
     return service, first, first_id, target_id
 
 
-def test_update_preserves_unknown_frontmatter_bom_and_creates_backup(tmp_path: Path) -> None:
+def test_update_preserves_unknown_frontmatter_bom_and_creates_backup(
+    tmp_path: Path,
+) -> None:
     service, path, document_id, _ = _indexed_service(
         tmp_path,
         "---\ntitle: 이전\ntags: [old]\naliases: [예전]\ncreated: 2026-07-30\ncustom_field: 유지\n---\n# 이전\n본문\n",
@@ -37,7 +48,13 @@ def test_update_preserves_unknown_frontmatter_bom_and_creates_backup(tmp_path: P
     result = commands.update_document(
         "ks-001",
         document_id,
-        DocumentUpdate(detail.content_hash, "새 제목", ["#MDE", " MDE ", ""], ["새 별칭", "새 별칭"], "# 이전\n수정 본문\n"),
+        DocumentUpdate(
+            detail.content_hash,
+            "새 제목",
+            ["#MDE", " MDE ", ""],
+            ["새 별칭", "새 별칭"],
+            "# 이전\n수정 본문\n",
+        ),
         confirm_sensitive=False,
     )
 
@@ -55,13 +72,17 @@ def test_update_preserves_unknown_frontmatter_bom_and_creates_backup(tmp_path: P
     assert len(backups) == 1
 
 
-def test_preview_does_not_write_and_conflict_keeps_external_change(tmp_path: Path) -> None:
+def test_preview_does_not_write_and_conflict_keeps_external_change(
+    tmp_path: Path,
+) -> None:
     service, path, document_id, _ = _indexed_service(tmp_path, "# 처음\n")
     detail = service.graphs.get_document_detail("ks-001", document_id)
     commands = KnowledgeDocumentCommandService(service)
     update = DocumentUpdate(detail.content_hash, "미리보기", ["tag"], [], "본문")
 
-    preview = commands.preview_update("ks-001", document_id, update, confirm_sensitive=False)
+    preview = commands.preview_update(
+        "ks-001", document_id, update, confirm_sensitive=False
+    )
     assert preview["after"]["title"] == "미리보기"
     assert path.read_text(encoding="utf-8") == "# 처음\n"
 
@@ -88,7 +109,9 @@ def test_read_only_source_is_blocked(tmp_path: Path) -> None:
     assert captured.value.code == "SOURCE_READ_ONLY"
 
 
-def test_link_resolution_rewrites_only_selected_occurrence_and_reindexes(tmp_path: Path) -> None:
+def test_link_resolution_rewrites_only_selected_occurrence_and_reindexes(
+    tmp_path: Path,
+) -> None:
     service, path, document_id, target_id = _indexed_service(
         tmp_path, "# 링크\n[[없는 대상]]\n[[없는 대상]]\n"
     )
@@ -98,7 +121,8 @@ def test_link_resolution_rewrites_only_selected_occurrence_and_reindexes(tmp_pat
     commands = KnowledgeDocumentCommandService(service)
 
     preview = commands.preview_link_resolution(
-        "ks-001", document_id,
+        "ks-001",
+        document_id,
         expected_content_hash=detail.content_hash,
         occurrence_id=occurrence.occurrence_id,
         target_document_id=target_id,
@@ -109,7 +133,8 @@ def test_link_resolution_rewrites_only_selected_occurrence_and_reindexes(tmp_pat
     assert preview["after"] == "[[대상 문서|없는 대상]]"
 
     result = commands.resolve_link(
-        "ks-001", document_id,
+        "ks-001",
+        document_id,
         expected_content_hash=detail.content_hash,
         occurrence_id=occurrence.occurrence_id,
         target_document_id=target_id,
@@ -121,7 +146,9 @@ def test_link_resolution_rewrites_only_selected_occurrence_and_reindexes(tmp_pat
     assert "[[대상 문서|없는 대상]]" in path.read_text(encoding="utf-8")
     assert result["indexing"]["unresolvedLinkCount"] == 1
     target_detail = service.graphs.get_document_detail("ks-001", target_id)
-    assert [item.document_id for item in target_detail.incoming_documents] == [document_id]
+    assert [item.document_id for item in target_detail.incoming_documents] == [
+        document_id
+    ]
 
 
 def test_append_child_link_updates_parent_atomically_and_is_idempotent(

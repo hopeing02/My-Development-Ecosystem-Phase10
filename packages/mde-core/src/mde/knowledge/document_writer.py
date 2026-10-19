@@ -38,28 +38,40 @@ class KnowledgeDocumentWriter:
     def resolve_path(source_root: Path, relative_path: str) -> Path:
         requested = Path(relative_path)
         if not relative_path.strip() or requested.is_absolute():
-            raise KnowledgeContractError("PATH_OUTSIDE_SOURCE", "Document path must be source-relative.")
+            raise KnowledgeContractError(
+                "PATH_OUTSIDE_SOURCE", "Document path must be source-relative."
+            )
         root = source_root.resolve(strict=True)
         try:
             target = (root / requested).resolve(strict=True)
         except FileNotFoundError as error:
-            raise KnowledgeContractError("DOCUMENT_NOT_FOUND", "Knowledge document was not found.") from error
+            raise KnowledgeContractError(
+                "DOCUMENT_NOT_FOUND", "Knowledge document was not found."
+            ) from error
         if not target.is_relative_to(root):
-            raise KnowledgeContractError("PATH_OUTSIDE_SOURCE", "Document path is outside its source.")
+            raise KnowledgeContractError(
+                "PATH_OUTSIDE_SOURCE", "Document path is outside its source."
+            )
         if target.suffix.casefold() != ".md" or not target.is_file():
-            raise KnowledgeContractError("DOCUMENT_NOT_FOUND", "Knowledge document was not found.")
+            raise KnowledgeContractError(
+                "DOCUMENT_NOT_FOUND", "Knowledge document was not found."
+            )
         return target
 
     @staticmethod
     def read(path: Path) -> tuple[bytes, str, bool]:
         data = path.read_bytes()
         if len(data) > MAX_DOCUMENT_BYTES:
-            raise KnowledgeContractError("DOCUMENT_TOO_LARGE", "Document exceeds the 2 MB edit limit.")
+            raise KnowledgeContractError(
+                "DOCUMENT_TOO_LARGE", "Document exceeds the 2 MB edit limit."
+            )
         bom = data.startswith(b"\xef\xbb\xbf")
         try:
             text = data.decode("utf-8-sig" if bom else "utf-8")
         except UnicodeDecodeError as error:
-            raise KnowledgeContractError("INVALID_MARKDOWN", "Document is not valid UTF-8 Markdown.") from error
+            raise KnowledgeContractError(
+                "INVALID_MARKDOWN", "Document is not valid UTF-8 Markdown."
+            ) from error
         return data, text, bom
 
     @staticmethod
@@ -77,17 +89,25 @@ class KnowledgeDocumentWriter:
     ) -> str:
         metadata, _, _, warnings = split_frontmatter(current)
         if warnings:
-            raise KnowledgeContractError("INVALID_FRONTMATTER", "Existing frontmatter is invalid.")
+            raise KnowledgeContractError(
+                "INVALID_FRONTMATTER", "Existing frontmatter is invalid."
+            )
         clean_title = title.strip()
         if not clean_title:
-            raise KnowledgeContractError("INVALID_MARKDOWN", "Document title is required.")
+            raise KnowledgeContractError(
+                "INVALID_MARKDOWN", "Document title is required."
+            )
         metadata["title"] = clean_title
         metadata["tags"] = normalize_values(tags, tags=True)
         metadata["aliases"] = normalize_values(aliases)
         next_body = body.replace("\r\n", "\n")
         if _H1_LINE.search(next_body):
-            next_body = _H1_LINE.sub(lambda match: f"{match.group(1)}{clean_title}", next_body, count=1)
-        frontmatter = yaml.safe_dump(metadata, allow_unicode=True, sort_keys=False).rstrip()
+            next_body = _H1_LINE.sub(
+                lambda match: f"{match.group(1)}{clean_title}", next_body, count=1
+            )
+        frontmatter = yaml.safe_dump(
+            metadata, allow_unicode=True, sort_keys=False
+        ).rstrip()
         return f"---\n{frontmatter}\n---\n\n{next_body.lstrip()}"
 
     def write(
@@ -104,7 +124,9 @@ class KnowledgeDocumentWriter:
         if bom:
             encoded = b"\xef\xbb\xbf" + encoded
         if len(encoded) > MAX_DOCUMENT_BYTES:
-            raise KnowledgeContractError("DOCUMENT_TOO_LARGE", "Document exceeds the 2 MB edit limit.")
+            raise KnowledgeContractError(
+                "DOCUMENT_TOO_LARGE", "Document exceeds the 2 MB edit limit."
+            )
         temporary = path.with_name(f"{path.name}.mde-tmp")
         backup_path: Path | None = None
         try:
@@ -115,7 +137,9 @@ class KnowledgeDocumentWriter:
             _, verify_text, _ = self.read(temporary)
             parsed = parse_markdown(verify_text, path)
             if parsed.warnings:
-                raise KnowledgeContractError("INVALID_FRONTMATTER", "Generated frontmatter is invalid.")
+                raise KnowledgeContractError(
+                    "INVALID_FRONTMATTER", "Generated frontmatter is invalid."
+                )
             if create_backup:
                 backup_path = self.backup.create(source_root, relative_path)
             os.replace(temporary, path)
@@ -126,5 +150,7 @@ class KnowledgeDocumentWriter:
         except OSError as error:
             if temporary.exists():
                 temporary.unlink()
-            raise KnowledgeContractError("FILE_WRITE_ERROR", "Unable to write Markdown document.") from error
+            raise KnowledgeContractError(
+                "FILE_WRITE_ERROR", "Unable to write Markdown document."
+            ) from error
         return backup_path

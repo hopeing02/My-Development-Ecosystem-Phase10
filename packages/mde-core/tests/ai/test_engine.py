@@ -7,7 +7,13 @@ from mde.ai.engine import AIEngine, create_default_provider_registry
 
 
 def test_default_provider_registry_contains_mock() -> None:
-    assert create_default_provider_registry().names() == ("claude", "gemini", "local", "mock", "openai")
+    assert create_default_provider_registry().names() == (
+        "claude",
+        "gemini",
+        "local",
+        "mock",
+        "openai",
+    )
 
 
 def test_ai_engine_writes_artifact_bundle(tmp_path: Path) -> None:
@@ -21,7 +27,9 @@ def test_ai_engine_writes_artifact_bundle(tmp_path: Path) -> None:
     )
     assert response.provider == "mock"
     assert manifest.is_file()
-    assert (tmp_path / ".mde/artifacts/TASK-1/generate/files/src/example.txt").read_text() == "hello"
+    assert (
+        tmp_path / ".mde/artifacts/TASK-1/generate/files/src/example.txt"
+    ).read_text() == "hello"
 
 
 def test_artifact_path_rejects_parent_traversal() -> None:

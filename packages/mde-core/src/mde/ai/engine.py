@@ -6,7 +6,13 @@ from typing import Any
 
 from mde.ai.artifacts import write_response_bundle
 from mde.ai.models import AIRequest, AIResponse
-from mde.ai.providers import ClaudeProvider, GeminiProvider, LocalLLMProvider, MockAIProvider, OpenAIProvider
+from mde.ai.providers import (
+    ClaudeProvider,
+    GeminiProvider,
+    LocalLLMProvider,
+    MockAIProvider,
+    OpenAIProvider,
+)
 from mde.ai.registry import AIProviderRegistry
 
 
@@ -36,7 +42,9 @@ class AIEngine:
             context=dict(context or {}),
         )
         response = provider.execute(request)
-        manifest_path = write_response_bundle(response, repository_root, run_id=run_id, step_id=step_id)
+        manifest_path = write_response_bundle(
+            response, repository_root, run_id=run_id, step_id=step_id
+        )
         return response, manifest_path
 
 

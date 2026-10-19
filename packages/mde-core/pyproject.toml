@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mde-core"
-version = "0.6.0"
+version = "0.10.0"
 description = "Core automation engine for My Development Ecosystem"
 requires-python = ">=3.11"
 dependencies = ["PyYAML>=6.0", "fastapi>=0.116,<1", "uvicorn>=0.35,<1"]

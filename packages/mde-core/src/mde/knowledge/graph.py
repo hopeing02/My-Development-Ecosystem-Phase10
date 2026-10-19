@@ -309,10 +309,13 @@ class KnowledgeGraphService:
                     )
                 ).casefold()
             )
+
         def rank(document: GraphDocumentRecord) -> tuple[int, str, str]:
             title = document.title.casefold()
             aliases = {item.casefold() for item in document.aliases}
-            stem = document.relative_path.rsplit("/", 1)[-1].removesuffix(".md").casefold()
+            stem = (
+                document.relative_path.rsplit("/", 1)[-1].removesuffix(".md").casefold()
+            )
             path = document.relative_path.casefold()
             if title == needle:
                 priority = 0
@@ -361,10 +364,7 @@ class KnowledgeGraphService:
             or (
                 document.source_id in sources
                 and sources[document.source_id].enabled
-                and (
-                    not sources[document.source_id].sensitive
-                    or confirm_sensitive
-                )
+                and (not sources[document.source_id].sensitive or confirm_sensitive)
             )
         )
         visible_ids = {document.id for document in visible_documents}

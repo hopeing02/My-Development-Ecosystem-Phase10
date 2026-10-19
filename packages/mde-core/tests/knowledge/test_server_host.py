@@ -15,7 +15,9 @@ from mde.knowledge.cli import _private_host
         ("::1", "::1"),
     ],
 )
-def test_private_host_accepts_local_network_addresses(value: str, expected: str) -> None:
+def test_private_host_accepts_local_network_addresses(
+    value: str, expected: str
+) -> None:
     assert _private_host(value) == expected
 
 

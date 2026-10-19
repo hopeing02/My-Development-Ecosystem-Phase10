@@ -34,7 +34,9 @@ def find_workflow_path(name: str, repository_root: Path | None = None) -> Path:
         if candidate.is_file():
             return candidate
     searched = ", ".join(str(path) for path in workflow_search_dirs(repository_root))
-    raise WorkflowNotFoundError(f"Workflow '{name}' was not found. Searched: {searched}")
+    raise WorkflowNotFoundError(
+        f"Workflow '{name}' was not found. Searched: {searched}"
+    )
 
 
 def load_workflow(path: Path) -> WorkflowDefinition:
@@ -54,7 +56,9 @@ def load_workflow(path: Path) -> WorkflowDefinition:
     )
 
 
-def load_named_workflow(name: str, repository_root: Path | None = None) -> WorkflowDefinition:
+def load_named_workflow(
+    name: str, repository_root: Path | None = None
+) -> WorkflowDefinition:
     return load_workflow(find_workflow_path(name, repository_root))
 
 

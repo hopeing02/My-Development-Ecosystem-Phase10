@@ -69,11 +69,17 @@ def create_app(
         if mutating_knowledge or mutating_capture or mutating_chatgpt:
             host = (request.url.hostname or "").casefold()
             if not _allowed_command_host(host):
-                return _error(403, "INVALID_HOST", "Knowledge commands require a local or private-network host.")
+                return _error(
+                    403,
+                    "INVALID_HOST",
+                    "Knowledge commands require a local or private-network host.",
+                )
             origin = request.headers.get("origin")
             origin_host = (urlparse(origin).hostname or "").casefold() if origin else ""
             if origin and origin_host != host:
-                return _error(403, "INVALID_ORIGIN", "Knowledge command origin is not allowed.")
+                return _error(
+                    403, "INVALID_ORIGIN", "Knowledge command origin is not allowed."
+                )
             content_type = (
                 request.headers.get("content-type", "")
                 .split(";", 1)[0]
@@ -172,9 +178,22 @@ def create_app(
             status_code = 409
         elif error.code == "DOCUMENT_TOO_LARGE":
             status_code = 413
-        elif error.code in {"SOURCE_DISABLED", "SENSITIVE_SOURCE_NOT_ALLOWED", "SOURCE_READ_ONLY", "SOURCE_NOT_EDITABLE", "LINK_REWRITE_NOT_ALLOWED", "PATH_OUTSIDE_SOURCE", "CROSS_SOURCE_LINK_NOT_ALLOWED"}:
+        elif error.code in {
+            "SOURCE_DISABLED",
+            "SENSITIVE_SOURCE_NOT_ALLOWED",
+            "SOURCE_READ_ONLY",
+            "SOURCE_NOT_EDITABLE",
+            "LINK_REWRITE_NOT_ALLOWED",
+            "PATH_OUTSIDE_SOURCE",
+            "CROSS_SOURCE_LINK_NOT_ALLOWED",
+        }:
             status_code = 403
-        elif error.code in {"FILE_WRITE_ERROR", "BACKUP_ERROR", "INDEX_ERROR", "GRAPH_REFRESH_ERROR"}:
+        elif error.code in {
+            "FILE_WRITE_ERROR",
+            "BACKUP_ERROR",
+            "INDEX_ERROR",
+            "GRAPH_REFRESH_ERROR",
+        }:
             status_code = 500
         return _error(status_code, error.code, str(error), error.details)
 
@@ -301,11 +320,19 @@ def create_app(
                     "contentHash": detail.content_hash,
                     "editable": detail.editable,
                     "outgoingLinks": [
-                        {"documentId": item.document_id, "sourceId": item.source_id, "title": item.title}
+                        {
+                            "documentId": item.document_id,
+                            "sourceId": item.source_id,
+                            "title": item.title,
+                        }
                         for item in detail.outgoing_documents
                     ],
                     "incomingLinks": [
-                        {"documentId": item.document_id, "sourceId": item.source_id, "title": item.title}
+                        {
+                            "documentId": item.document_id,
+                            "sourceId": item.source_id,
+                            "title": item.title,
+                        }
                         for item in detail.incoming_documents
                     ],
                     "unresolvedLinks": list(detail.unresolved_links),
@@ -345,7 +372,9 @@ def create_app(
             tag=tag,
             limit=limit,
         )
-        return _success({"documents": [_document_summary(item, query) for item in documents]})
+        return _success(
+            {"documents": [_document_summary(item, query) for item in documents]}
+        )
 
     @application.get("/api/v1/knowledge/sources/{source_id}/tags")
     async def source_tags(
@@ -378,7 +407,9 @@ def create_app(
         methods=["POST", "DELETE"],
         response_model=None,
     )
-    async def capture_relation_gateway(request: Request, relation_path: str) -> Response:
+    async def capture_relation_gateway(
+        request: Request, relation_path: str
+    ) -> Response:
         return await _proxy_capture_request(
             request, f"/api/v1/capture-relations/{relation_path}"
         )
@@ -387,9 +418,7 @@ def create_app(
     async def capture_graph_gateway(request: Request) -> Response:
         return await _proxy_capture_request(request, "/api/v1/graph")
 
-    @application.get(
-        "/api/v1/graph/neighborhood/{entity_id}", response_model=None
-    )
+    @application.get("/api/v1/graph/neighborhood/{entity_id}", response_model=None)
     async def capture_neighborhood_gateway(
         request: Request, entity_id: str
     ) -> Response:
@@ -405,9 +434,7 @@ def create_app(
         "/api/v1/documents/{document_id:path}/capture-backlinks",
         response_model=None,
     )
-    async def capture_backlinks_gateway(
-        request: Request, document_id: str
-    ) -> Response:
+    async def capture_backlinks_gateway(request: Request, document_id: str) -> Response:
         return await _proxy_capture_request(
             request, f"/api/v1/documents/{document_id}/capture-backlinks"
         )
@@ -486,7 +513,9 @@ def _graph_payload(graph) -> dict[str, object]:
     }
 
 
-def _document_summary(document: GraphDocumentRecord, query: str = "") -> dict[str, object]:
+def _document_summary(
+    document: GraphDocumentRecord, query: str = ""
+) -> dict[str, object]:
     needle = query.strip().casefold()
     title = document.title.casefold()
     aliases = {item.casefold() for item in document.aliases}

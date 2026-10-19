@@ -132,12 +132,34 @@ def parse_markdown(text: str, path: Path) -> ParsedMarkdown:
     for attachment in _ATTACHMENT.finditer(clean_body):
         raw_target = attachment.group(1).strip()
         target, heading, display_text = _wiki_parts(raw_target)
-        links.append(_occurrence(content, attachment, body_offset=body_offset, target=target, link_type="attachment", display_text=display_text, raw_target=raw_target, heading=heading))
+        links.append(
+            _occurrence(
+                content,
+                attachment,
+                body_offset=body_offset,
+                target=target,
+                link_type="attachment",
+                display_text=display_text,
+                raw_target=raw_target,
+                heading=heading,
+            )
+        )
     for wiki in _WIKI.finditer(clean_body):
         raw_target = wiki.group(1).strip()
         target, heading, display_text = _wiki_parts(raw_target)
         if target:
-            links.append(_occurrence(content, wiki, body_offset=body_offset, target=target, link_type="wiki_link", display_text=display_text, raw_target=raw_target, heading=heading))
+            links.append(
+                _occurrence(
+                    content,
+                    wiki,
+                    body_offset=body_offset,
+                    target=target,
+                    link_type="wiki_link",
+                    display_text=display_text,
+                    raw_target=raw_target,
+                    heading=heading,
+                )
+            )
     for markdown in _MARKDOWN_LINK.finditer(clean_body):
         display_text = markdown.group(1).strip() or None
         raw_target = markdown.group(2).strip().split(maxsplit=1)[0].strip("<>")
@@ -147,7 +169,18 @@ def parse_markdown(text: str, path: Path) -> ParsedMarkdown:
             else "internal_markdown"
         )
         target, separator, heading = raw_target.partition("#")
-        links.append(_occurrence(content, markdown, body_offset=body_offset, target=target, link_type=link_type, display_text=display_text, raw_target=raw_target, heading=heading.strip() if separator else None))
+        links.append(
+            _occurrence(
+                content,
+                markdown,
+                body_offset=body_offset,
+                target=target,
+                link_type=link_type,
+                display_text=display_text,
+                raw_target=raw_target,
+                heading=heading.strip() if separator else None,
+            )
+        )
 
     return ParsedMarkdown(
         title=title,

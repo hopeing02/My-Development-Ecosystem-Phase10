@@ -267,9 +267,7 @@ class SourceRegistry:
                 editable_in_viewer=bool(
                     data.get("editable_in_viewer", editable_default)
                 ),
-                allow_link_rewrite=bool(
-                    data.get("allow_link_rewrite", link_default)
-                ),
+                allow_link_rewrite=bool(data.get("allow_link_rewrite", link_default)),
                 allow_document_create=bool(data.get("allow_document_create", False)),
                 allow_as_shared_link_target=bool(
                     data.get("allow_as_shared_link_target", False)

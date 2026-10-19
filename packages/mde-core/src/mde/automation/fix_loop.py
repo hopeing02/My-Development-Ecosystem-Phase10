@@ -4,7 +4,12 @@ from dataclasses import replace
 from typing import Iterable
 
 from mde.workflow.executor import WorkflowExecutionError, execute_workflow
-from mde.workflow.models import WorkflowContext, WorkflowDefinition, WorkflowResult, WorkflowStep
+from mde.workflow.models import (
+    WorkflowContext,
+    WorkflowDefinition,
+    WorkflowResult,
+    WorkflowStep,
+)
 from mde.workflow.registry import CommandRegistry
 
 
@@ -12,7 +17,9 @@ def _find_step(workflow: WorkflowDefinition, command: str) -> WorkflowStep | Non
     return next((step for step in workflow.steps if step.command == command), None)
 
 
-def _single_step_workflow(name: str, steps: Iterable[WorkflowStep]) -> WorkflowDefinition:
+def _single_step_workflow(
+    name: str, steps: Iterable[WorkflowStep]
+) -> WorkflowDefinition:
     normalized = tuple(replace(step, depends_on=()) for step in steps)
     return WorkflowDefinition(version=1, name=name, description=name, steps=normalized)
 
@@ -33,7 +40,9 @@ def execute_workflow_with_fix_loop(
     try:
         return execute_workflow(workflow, context, registry)
     except WorkflowExecutionError as initial_error:
-        failed_step = initial_error.result.steps[-1] if initial_error.result.steps else None
+        failed_step = (
+            initial_error.result.steps[-1] if initial_error.result.steps else None
+        )
         if (
             max_fix_attempts <= 0
             or failed_step is None
@@ -41,8 +50,12 @@ def execute_workflow_with_fix_loop(
         ):
             raise
 
-        fix_step = _find_step(workflow, "ai.fix") or WorkflowStep(id="auto-fix", command="ai.fix")
-        apply_step = _find_step(workflow, "change.apply") or WorkflowStep(id="auto-apply-fix", command="change.apply")
+        fix_step = _find_step(workflow, "ai.fix") or WorkflowStep(
+            id="auto-fix", command="ai.fix"
+        )
+        apply_step = _find_step(workflow, "change.apply") or WorkflowStep(
+            id="auto-apply-fix", command="change.apply"
+        )
         test_step = _find_step(workflow, "test.run")
         if test_step is None:
             raise
@@ -75,8 +88,12 @@ def execute_workflow_with_fix_loop(
             except WorkflowExecutionError as repair_error:
                 accumulated.extend(repair_error.result.steps)
                 last_error = repair_error
-                failed = repair_error.result.steps[-1] if repair_error.result.steps else None
-                context.data["last_test_error"] = failed.error if failed else str(repair_error)
+                failed = (
+                    repair_error.result.steps[-1] if repair_error.result.steps else None
+                )
+                context.data["last_test_error"] = (
+                    failed.error if failed else str(repair_error)
+                )
                 if failed is None or failed.command != "test.run":
                     break
 
@@ -88,4 +105,6 @@ def execute_workflow_with_fix_loop(
             steps=tuple(accumulated),
             error=f"Automatic fix loop exhausted after {max_fix_attempts} attempt(s): {last_error}",
         )
-        raise WorkflowExecutionError(final.error or "Automatic fix loop failed", final) from last_error
+        raise WorkflowExecutionError(
+            final.error or "Automatic fix loop failed", final
+        ) from last_error

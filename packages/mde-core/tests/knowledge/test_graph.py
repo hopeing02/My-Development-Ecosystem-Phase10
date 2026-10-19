@@ -153,12 +153,8 @@ def test_explicit_link_resolves_only_to_approved_shared_source(
     project = knowledge_service.add_source(
         project_root, name="project", category="project"
     )
-    knowledge_service.add_source(
-        blocked_root, name="blocked", category="development"
-    )
-    knowledge_service.update_source(
-        common.id, allow_as_shared_link_target=True
-    )
+    knowledge_service.add_source(blocked_root, name="blocked", category="development")
+    knowledge_service.update_source(common.id, allow_as_shared_link_target=True)
     knowledge_service.scan_selected(all_sources=True)
 
     detail = knowledge_service.graphs.get_document_detail(

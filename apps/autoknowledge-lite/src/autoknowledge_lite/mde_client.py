@@ -174,9 +174,7 @@ class MDEKnowledgeClient:
             raise MDEClientError("MDE_EXECUTION_ERROR", "Unable to run MDE.") from error
         stdout = completed.stdout
         if not isinstance(stdout, (str, bytes, bytearray)) or not stdout.strip():
-            raise MDEClientError(
-                "INVALID_RESPONSE", "MDE did not return valid JSON."
-            )
+            raise MDEClientError("INVALID_RESPONSE", "MDE did not return valid JSON.")
         try:
             payload = json.loads(stdout)
         except json.JSONDecodeError as error:

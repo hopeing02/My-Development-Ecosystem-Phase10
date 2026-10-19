@@ -51,7 +51,9 @@ def validate_task_document(document: Any) -> TaskDefinition:
         raise TaskValidationError("Task 'inputs' must be a mapping.")
     if not isinstance(metadata, dict):
         raise TaskValidationError("Task 'metadata' must be a mapping.")
-    if not isinstance(acceptance, list) or not all(isinstance(item, str) for item in acceptance):
+    if not isinstance(acceptance, list) or not all(
+        isinstance(item, str) for item in acceptance
+    ):
         raise TaskValidationError("Task 'acceptance' must be a list of strings.")
 
     return TaskDefinition(
@@ -63,7 +65,11 @@ def validate_task_document(document: Any) -> TaskDefinition:
         workflow=_require_text(task, "workflow"),
         source=str(task.get("source", "unknown")).strip() or "unknown",
         branch=str(repository["branch"]).strip() if repository.get("branch") else None,
-        base_branch=str(repository["base_branch"]).strip() if repository.get("base_branch") else None,
+        base_branch=(
+            str(repository["base_branch"]).strip()
+            if repository.get("base_branch")
+            else None
+        ),
         execution=TaskExecutionPolicy(
             auto_apply=bool(execution.get("auto_apply", False)),
             run_tests=bool(execution.get("run_tests", True)),

@@ -10,7 +10,11 @@ from mde.workflow.registry import CommandRegistry
 def save_changes(context: WorkflowContext, step: WorkflowStep) -> dict[str, Any]:
     changes = git.changed_files(context.repository_root)
     if not changes:
-        return {"message": "No changes to commit.", "commit_hash": None, "changed_files": []}
+        return {
+            "message": "No changes to commit.",
+            "commit_hash": None,
+            "changed_files": [],
+        }
     message = str(
         step.args.get("message")
         or context.data.get("commit_message")
