@@ -104,13 +104,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     generate_parser = subparsers.add_parser(
         "generate",
-        help="Generate MDE code artifacts.",
+        help="Reserved command: generate (code artifacts).",
+        description="Reserved command: generate. Code generation is not implemented.",
     )
     generate_subparsers = generate_parser.add_subparsers(dest="generate_target")
 
     generate_command_parser = generate_subparsers.add_parser(
         "command",
-        help="Generate a command module and its test file.",
+        help="Reserved command: generate command.",
+        description="Reserved command: generate command. Code generation is not implemented.",
     )
     generate_command_parser.add_argument(
         "command_name",
@@ -304,12 +306,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     inbox_parser = subparsers.add_parser(
         "inbox",
-        help="Manage legacy inbox patch files.",
+        help="Reserved command: inbox (legacy patches).",
+        description="Reserved command: inbox. Legacy patch listing is not implemented.",
     )
     inbox_subparsers = inbox_parser.add_subparsers(dest="inbox_action")
     inbox_subparsers.add_parser(
         "list",
-        help="List legacy inbox patches.",
+        help="Reserved command: inbox list.",
+        description="Reserved command: inbox list. Legacy patch listing is not implemented.",
     )
 
     register_knowledge_parser(subparsers)

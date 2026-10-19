@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Clarified that generate/inbox and their parsed subcommands remain reserved. Preserved exit code 2 and no-write behavior, synchronized both managed CLI guides, and added regression checks for help and documentation drift.
+
 - Replaced three deprecated Capture HTTP status aliases without changing 413/422 responses. Added httpx2 only to test dependencies for Starlette TestClient compatibility and made Starlette deprecations fail tests. Both Python suites now pass without warnings.
 
 - Stopped tracking six generated mde_core.egg-info files under the existing ADR-010 policy while retaining local copies. Added a regression check and verified that both installation paths leave the Git worktree unchanged.

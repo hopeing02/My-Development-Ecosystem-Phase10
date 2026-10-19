@@ -6,6 +6,8 @@
 
 ## 문서 목록
 
+- `TEST-017-reserved-cli-contract.md` — 예약 명령 도움말·반환 코드·무변경·문서 회귀
+
 - `TEST-016-starlette-deprecation-cleanup.md` — 경고 오류 처리·413/422 호환 회귀
 
 - `TEST-015-generated-metadata-tracking.md` — egg-info 로컬 보존·Git 제외·재설치 회귀

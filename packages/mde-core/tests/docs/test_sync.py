@@ -6,9 +6,11 @@ from mde.cli import IMPLEMENTED_COMMANDS, build_parser, main
 from mde.documentation import (
     END_MARKER,
     START_MARKER,
+    check_document,
     expected_document,
     render_cli_reference,
     render_target_reference,
+    target_path,
 )
 
 
@@ -30,10 +32,21 @@ def test_cli_reference_reports_implemented_and_reserved_commands() -> None:
     assert "| `mde docs` | implemented |" in reference
     assert "| `mde knowledge` | implemented |" in reference
     assert "| `mde generate` | reserved |" in reference
+    assert "| `mde inbox` | reserved |" in reference
+    assert "### `mde generate`" not in reference
+    assert "### `mde inbox`" not in reference
     assert (
         "mde docs update [-h] "
         "[--target {mde-user-guide,knowledge-guide}] [--apply]" in reference
     )
+
+
+@pytest.mark.parametrize("target", ["mde-user-guide", "knowledge-guide"])
+def test_repository_managed_guides_match_live_cli(target: str) -> None:
+    root = Path(__file__).resolve().parents[4]
+    assert check_document(
+        target_path(root, target), build_parser(), IMPLEMENTED_COMMANDS, target
+    ), f"Run mde docs update --target {target} --apply."
 
 
 def test_knowledge_reference_contains_only_knowledge_cli() -> None:

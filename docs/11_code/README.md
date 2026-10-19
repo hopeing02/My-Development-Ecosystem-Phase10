@@ -6,6 +6,8 @@
 
 ## 문서 목록
 
+- `CODE-011-reserved-cli-contract.md` — generate/inbox 실태 분석·예약 도움말·문서 정합성
+
 - `CODE-010-starlette-deprecation-cleanup.md` — 상태 상수·TestClient 경고 최소 수정
 
 - `CODE-009-generated-metadata-tracking.md` — 생성 메타데이터 추적 해제 및 재설치 검증

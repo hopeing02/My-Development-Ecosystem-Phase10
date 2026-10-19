@@ -174,7 +174,7 @@ uv run mde docs update --target knowledge-guide --apply
 | 명령 | 상태 | 설명 |
 |---|---|---|
 | `mde new` | implemented | Create a new MDE project. |
-| `mde generate` | reserved | Generate MDE code artifacts. |
+| `mde generate` | reserved | Reserved command: generate (code artifacts). |
 | `mde apply` | implemented | Apply a patch file or task manifest. |
 | `mde save` | implemented | Format, test, commit, and optionally push changes. |
 | `mde agent` | implemented | Run the MDE mobile automation agent. |
@@ -183,8 +183,9 @@ uv run mde docs update --target knowledge-guide --apply
 | `mde sync` | implemented | Synchronize mobile tasks through GitHub. |
 | `mde ai` | implemented | Inspect configured AI providers. |
 | `mde plugin` | implemented | Inspect installed workflow plugins. |
-| `mde inbox` | reserved | Manage legacy inbox patch files. |
+| `mde inbox` | reserved | Reserved command: inbox (legacy patches). |
 | `mde knowledge` | implemented | Manage local Markdown knowledge sources and indexes. |
+| `mde codex` | implemented | Capture Windows Codex development sessions. |
 | `mde docs` | implemented | Check and safely update managed MDE documentation. |
 | `mde build` | reserved | Reserved command: build |
 | `mde release` | reserved | Reserved command: release |
@@ -201,7 +202,7 @@ uv run mde docs update --target knowledge-guide --apply
 
 ### `mde save`
 
-- `mde save [-h] -m MESSAGE [--no-push]`
+- `mde save [-h] -m MESSAGE [--no-push] [--finalize-codex]`
 
 ### `mde agent`
 
@@ -245,12 +246,35 @@ uv run mde docs update --target knowledge-guide --apply
 - `mde knowledge source-path [-h] [--format {json}] source`
 - `mde knowledge index-file [-h] --source SOURCE --path PATH [--format {json}]`
 - `mde knowledge show [-h] source`
-- `mde knowledge update [-h] [--enabled ENABLED] [--agent-access AGENT_ACCESS] [--capture-write CAPTURE_WRITE] [--confirm-sensitive-access] [--confirm-sensitive-write] source`
+- `mde knowledge update [-h] [--enabled ENABLED] [--agent-access AGENT_ACCESS] [--capture-write CAPTURE_WRITE] [--read-only READ_ONLY] [--viewer-edit VIEWER_EDIT] [--link-rewrite LINK_REWRITE] [--shared-link-target SHARED_LINK_TARGET] [--confirm-sensitive-access] [--confirm-sensitive-write] source`
 - `mde knowledge remove [-h] source`
 - `mde knowledge scan [-h] [--all] [--category {development,project,personal,work,shared}] [--include-sensitive] [source]`
-- `mde knowledge search [-h] [--source SOURCE] [--category {development,project,personal,work,shared}] [--tag TAG] [--limit LIMIT] [--all] [--include-sensitive] [query]`
+- `mde knowledge search [-h] [--source SOURCE] [--category {development,project,personal,work,shared}] [--tag TAG] [--limit LIMIT] [--all] [--include-sensitive] [--format {json}] [query]`
+- `mde knowledge link-child [-h] --source SOURCE --parent PARENT --target TARGET [--confirm-sensitive] [--format {json}]`
 - `mde knowledge backlinks [-h] --source SOURCE [--limit LIMIT] document`
-- `mde knowledge serve [-h] [--port PORT] [--no-open]`
+- `mde knowledge serve [-h] [--host HOST] [--port PORT] [--no-open]`
+
+### `mde codex`
+
+- `mde codex register [-h] --project-id PROJECT_ID --path PATH [--target-folder TARGET_FOLDER] [--display-name DISPLAY_NAME]`
+- `mde codex unregister [-h] --project-id PROJECT_ID`
+- `mde codex list [-h]`
+- `mde codex start [-h] --project PROJECT --title TITLE [--request REQUEST] [--launch]`
+- `mde codex stop [-h] [--session SESSION] [--summary SUMMARY]`
+- `mde codex finalize [-h] [--session SESSION] [--summary SUMMARY]`
+- `mde codex status [-h] [--session SESSION] [--json]`
+- `mde codex run [-h] [--session SESSION] [--cwd CWD] [--timeout TIMEOUT] ...`
+- `mde codex retry [-h] [--session SESSION]`
+- `mde codex add-note [-h] [--session SESSION] [--type TYPE] --message MESSAGE`
+- `mde codex sessions discover [-h]`
+- `mde codex sessions list [-h]`
+- `mde codex sessions inspect [-h] --source-session SOURCE_SESSION`
+- `mde codex sessions attach [-h] --capture-session CAPTURE_SESSION --source-session SOURCE_SESSION [--consent]`
+- `mde codex sessions detach [-h] --capture-session CAPTURE_SESSION`
+- `mde codex sessions sync [-h] --capture-session CAPTURE_SESSION [--no-transmit]`
+- `mde codex sessions import [-h] --capture-session CAPTURE_SESSION --source-file SOURCE_FILE [--consent]`
+- `mde codex sessions doctor [-h]`
+- `mde codex doctor [-h]`
 
 ### `mde docs`
 
@@ -261,6 +285,11 @@ uv run mde docs update --target knowledge-guide --apply
 ## 14. 예약 명령
 
 CLI 목록에 `reserved`로 표시되는 명령은 이름만 예약되어 있고 아직 실행 기능이 없다. 예약 명령 실행은 상태 코드 2를 반환하며, 구현된 기능으로 간주하지 않는다.
+
+`mde generate command <name>`과 `mde inbox list`도 예약된 구문이다. 인자를
+해석할 수 있지만 코드·테스트 파일을 생성하거나 inbox 목록을 조회하지 않는다.
+기존 파일과 입력 자료도 변경하지 않는다. 각 명령의 `--help`에서도 미구현 상태를
+확인할 수 있다.
 
 ## 15. 권장 일상 흐름
 
