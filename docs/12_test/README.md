@@ -6,6 +6,8 @@
 
 ## 문서 목록
 
+- `TEST-018-automation-repair-continuation.md` — 실제 pytest·Git 연계 및 실패·checkpoint 검증
+
 - `TEST-017-reserved-cli-contract.md` — 예약 명령 도움말·반환 코드·무변경·문서 회귀
 
 - `TEST-016-starlette-deprecation-cleanup.md` — 경고 오류 처리·413/422 호환 회귀

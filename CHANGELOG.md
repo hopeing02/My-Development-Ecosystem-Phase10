@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Fixed automatic repair returning completed before remaining workflow steps ran. Successful retests now resume the original workflow with its policies and checkpoint intact; downstream failures remain failures. Added an acceptance test using real pytest, artifact application, commit, and push to a temporary bare remote with a deterministic AI provider.
+
 - Clarified that generate/inbox and their parsed subcommands remain reserved. Preserved exit code 2 and no-write behavior, synchronized both managed CLI guides, and added regression checks for help and documentation drift.
 
 - Replaced three deprecated Capture HTTP status aliases without changing 413/422 responses. Added httpx2 only to test dependencies for Starlette TestClient compatibility and made Starlette deprecations fail tests. Both Python suites now pass without warnings.

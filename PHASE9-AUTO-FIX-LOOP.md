@@ -11,6 +11,19 @@ When `test.run` fails and the task enables fix attempts:
 The repair cycle stops immediately when tests pass, or fails after the configured maximum.
 Only failures from `test.run` enter the repair loop.
 
+After a successful retest, MDE resumes all remaining original workflow steps instead
+of returning early. Completed generation/apply steps are not repeated. Existing
+enabled/condition policies still apply. A later save, push, or other step failure
+propagates as a workflow failure and does not restart AI repair. The original test
+step's output and checkpoint are restored from the successful retest; synthetic
+repair IDs do not replace the original workflow checkpoint.
+
+Task execution retains its existing policy: Git steps may be disabled by the Task
+engine and handled by its enclosing Sync cycle. This change does not enable them.
+
+This mechanism does not implement a deployment adapter or validate real AI review
+approval. Those remain separate requirements for autonomous development-to-deployment.
+
 ## Task configuration
 
 ```yaml

@@ -56,7 +56,9 @@ def execute_workflow_with_fix_loop(
         apply_step = _find_step(workflow, "change.apply") or WorkflowStep(
             id="auto-apply-fix", command="change.apply"
         )
-        test_step = _find_step(workflow, "test.run")
+        test_step = next(
+            (step for step in workflow.steps if step.id == failed_step.step_id), None
+        )
         if test_step is None:
             raise
 
@@ -75,16 +77,11 @@ def execute_workflow_with_fix_loop(
                     replace(test_step, id=f"auto-retest-{attempt}"),
                 ),
             )
+            checkpoint_callback = context.data.get("checkpoint_callback")
             try:
+                # Repair-only step IDs must not replace the original checkpoint.
+                context.data["checkpoint_callback"] = None
                 repaired = execute_workflow(repair, context, registry)
-                accumulated.extend(repaired.steps)
-                return WorkflowResult(
-                    workflow_name=workflow.name,
-                    status="completed",
-                    started_at=initial_error.result.started_at,
-                    completed_at=repaired.completed_at,
-                    steps=tuple(accumulated),
-                )
             except WorkflowExecutionError as repair_error:
                 accumulated.extend(repair_error.result.steps)
                 last_error = repair_error
@@ -96,6 +93,47 @@ def execute_workflow_with_fix_loop(
                 )
                 if failed is None or failed.command != "test.run":
                     break
+                continue
+            finally:
+                context.data["checkpoint_callback"] = checkpoint_callback
+
+            accumulated.extend(repaired.steps)
+            retest = replace(repaired.steps[-1], step_id=test_step.id)
+            accumulated.append(retest)
+            context.outputs[test_step.id] = dict(retest.outputs)
+            completed_ids = {
+                step.step_id
+                for step in initial_error.result.steps
+                if step.status in {"completed", "skipped"}
+            } | {test_step.id}
+            if callable(checkpoint_callback):
+                checkpoint_callback(test_step.id, tuple(sorted(completed_ids)))
+            previous_completed = context.data.get("completed_steps", ())
+            context.data["completed_steps"] = tuple(sorted(completed_ids))
+            try:
+                continued = execute_workflow(workflow, context, registry)
+            except WorkflowExecutionError as error:
+                remaining = tuple(
+                    step
+                    for step in error.result.steps
+                    if step.step_id not in completed_ids
+                )
+                final = replace(
+                    error.result,
+                    started_at=initial_error.result.started_at,
+                    steps=tuple(accumulated) + remaining,
+                )
+                raise WorkflowExecutionError(str(error), final) from error
+            finally:
+                context.data["completed_steps"] = previous_completed
+            remaining = tuple(
+                step for step in continued.steps if step.step_id not in completed_ids
+            )
+            return replace(
+                continued,
+                started_at=initial_error.result.started_at,
+                steps=tuple(accumulated) + remaining,
+            )
 
         final = WorkflowResult(
             workflow_name=workflow.name,
