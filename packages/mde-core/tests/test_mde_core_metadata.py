@@ -61,3 +61,19 @@ def test_save_quality_tools_are_declared_and_locked() -> None:
     lock = tomllib.loads((root / "uv.lock").read_text(encoding="utf-8"))
     locked = {package["name"] for package in lock["package"]}
     assert {"black", "ruff", "pytest"} <= declared & locked
+
+
+def test_generated_package_metadata_is_ignored_and_untracked() -> None:
+    root = Path(__file__).resolve().parents[3]
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z", "--", "*.egg-info/*"],
+        cwd=root,
+        capture_output=True,
+        check=True,
+    )
+    assert tracked.stdout == b"", "Generated egg-info must not be tracked by Git."
+    subprocess.run(
+        ["git", "check-ignore", "--no-index", "-q", "mde_core.egg-info/PKG-INFO"],
+        cwd=root,
+        check=True,
+    )
