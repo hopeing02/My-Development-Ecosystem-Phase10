@@ -6,6 +6,8 @@
 
 ## 문서 목록
 
+- `CODE-010-starlette-deprecation-cleanup.md` — 상태 상수·TestClient 경고 최소 수정
+
 - `CODE-009-generated-metadata-tracking.md` — 생성 메타데이터 추적 해제 및 재설치 검증
 
 - `CODE-007-validation-environment-recovery.md` — 개발 재개 환경·버전 정합성 수정과 초기 검증 기록

@@ -13,6 +13,7 @@ dependencies = ["PyYAML>=6.0", "fastapi>=0.116,<1", "uvicorn>=0.35,<1"]
 dev = [
     "black==26.10.1",
     "httpx>=0.28,<1",
+    "httpx2==2.14.0",
     "pytest>=8,<10",
     "ruff==0.15.20",
 ]
@@ -30,3 +31,4 @@ mde = ["workflows/*.yaml", "knowledge/viewer/index.html", "knowledge/viewer/asse
 [tool.pytest.ini_options]
 pythonpath = [".", "packages/mde-core/src"]
 testpaths = ["tests", "tools/tests", "packages/mde-core/tests"]
+filterwarnings = ["error::starlette.exceptions.StarletteDeprecationWarning"]

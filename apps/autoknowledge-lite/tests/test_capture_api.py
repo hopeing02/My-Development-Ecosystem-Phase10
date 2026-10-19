@@ -221,6 +221,21 @@ def test_symlink_target_folder_cannot_escape_vault(tmp_path: Path) -> None:
     assert list(outside.iterdir()) == []
 
 
+def test_oversized_clipboard_returns_413_without_saving(tmp_path: Path) -> None:
+    indexer = RecordingIndexer()
+    content = "x" * (1024 * 1024 + 1)
+    response = _client(tmp_path, indexer).post(
+        "/api/v1/captures", json=_request(content=content)
+    )
+
+    assert response.status_code == 413
+    assert response.json()["error"]["code"] == "CONTENT_TOO_LARGE"
+    assert response.json()["error"]["field"] == "payload.content"
+    assert content not in response.text
+    assert list((tmp_path / "vault").rglob("*.md")) == []
+    assert indexer.indexed == []
+
+
 def test_sensitive_content_is_blocked_without_echoing_secret(tmp_path: Path) -> None:
     secret = "Authorization: Bearer abcdefghijklmnop"
     response = _client(tmp_path).post("/api/v1/captures", json=_request(content=secret))

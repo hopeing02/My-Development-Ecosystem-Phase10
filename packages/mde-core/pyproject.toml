@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 dependencies = ["PyYAML>=6.0", "fastapi>=0.116,<1", "uvicorn>=0.35,<1"]
 
 [project.optional-dependencies]
-test = ["httpx>=0.28,<1", "pytest>=8,<10", "ruff==0.15.20"]
+test = ["httpx>=0.28,<1", "httpx2==2.14.0", "pytest>=8,<10", "ruff==0.15.20"]
 
 [project.scripts]
 mde = "mde.cli:main"

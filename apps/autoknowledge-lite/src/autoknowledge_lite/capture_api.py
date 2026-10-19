@@ -229,7 +229,7 @@ class CaptureError(RuntimeError):
         message: str,
         *,
         field: str | None = None,
-        http_status: int = status.HTTP_422_UNPROCESSABLE_ENTITY,
+        http_status: int = status.HTTP_422_UNPROCESSABLE_CONTENT,
     ) -> None:
         super().__init__(message)
         self.code = code
@@ -503,7 +503,7 @@ class ClipboardItemHandler:
                 "CONTENT_TOO_LARGE",
                 "본문은 1MB를 초과할 수 없습니다.",
                 field="payload.content",
-                http_status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                http_status=status.HTTP_413_CONTENT_TOO_LARGE,
             )
         if contains_sensitive_content(normalized):
             raise CaptureError(
@@ -1050,7 +1050,7 @@ def install_capture_api(
             )
         )
         return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             content=response.model_dump(mode="json"),
         )
 
