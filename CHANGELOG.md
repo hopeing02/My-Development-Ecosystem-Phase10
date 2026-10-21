@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Added MDE-CODEX-W1 independent single-task Codex runner with path checks, validation results and failure JSON; existing Provider and Workflow policies are preserved.
+
 - 기존 Codex CLI Provider와 명시적 코드 문맥·실제 실패 로그 전달을 추가했다.
 - 실제 Codex 생성·리뷰·수정부터 pytest·커밋·로컬 배포까지 검증했다.
 

@@ -1,0 +1,16 @@
+{
+  "taskId": "TASK-001",
+  "stepId": "MDE-CODEX-W1",
+  "projectPath": "C:\\My-Development-Ecosystem-Phase10",
+  "requirement": "현재 STEP에 필요한 최소 변경만 수행하고 기존 검증 완료 코드는 재작성하지 않는다. 실제 작은 개발 요구사항으로 교체한다.",
+  "allowedFiles": [
+    "packages/mde-core/src/mde/example.py",
+    "packages/mde-core/tests/test_example.py"
+  ],
+  "validationCommands": [
+    ["uv", "run", "--frozen", "pytest", "packages/mde-core/tests/test_example.py"],
+    ["uv", "run", "--frozen", "ruff", "check", "."],
+    ["uv", "run", "--frozen", "black", "--check", "."]
+  ],
+  "timeoutSeconds": 1800
+}
