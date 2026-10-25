@@ -1,281 +1,111 @@
-STEP DOC-PARSER-1 — HWPX 최소 텍스트 추출
-1. 이번 단계의 목표
-검증 완료된 DOC-PARSER-0의 inspect_document_source()를 그대로 재사용하여 .hwpx 문서에서 본문 텍스트만 최소 추출한다.
-한컴 공식 HWPX 구조상 HWPX는 ZIP/XML 기반이며, Contents/section0.xml, section1.xml, ... 에 구역별 본문이 저장되고 본문 문자열은 <hp:t> 요소에 들어간다.
-이번 STEP에서는 이 구조만 사용한다.
-HWPX 파일
-↓
-DOC-PARSER-0 inspect_document_source()
-↓
-ZIP 열기
-↓
-Contents/sectionN.xml 숫자 순 정렬
-↓
-<t> 텍스트 추출
-↓
-section 단위 문자열 연결
-↓
-str 반환
-2. 기존 기능 재사용
-재사용:
-apps/document-parser/src/document_parser/source.py
-DocumentSource
-inspect_document_source()
-위 검증 완료 파일은 수정하지 않는다.
-__init__.py도 수정하지 않는다.
-3. 변경 파일
-신규
-apps/document-parser/src/document_parser/hwpx.py
-apps/document-parser/tests/test_hwpx.py
-docs/15_projects/document-parser/implementation/DOC-PARSER-1.md
-기존 파일 변경 없음.
-4. 운영 코드
-apps/document-parser/src/document_parser/hwpx.py
-from __future__ import annotations
+# DOC-PARSER-1 — HWPX 최소 텍스트 추출
 
-import re
-import xml.etree.ElementTree as ET
-import zipfile
-from pathlib import Path
+- 문서 역할: 개발 명세 원본. 개발 실행 중 수정 금지.
+- 정리일: 2026-10-25
+- 전제: DOC-PARSER-0 검증 완료. 기존 코드와 공개 API는 수정하지 않는다.
+- 실행 요청: `tasks/pending/DOC-PARSER-1.json`
 
-from .source import inspect_document_source
+## 목표
 
-_SECTION_PATTERN = re.compile(r"^Contents/section(\d+)\.xml$")
+ZIP/XML 기반 HWPX에서 구역별 본문 텍스트만 최소 추출하여 `str`로 반환한다.
+문단이나 서식 구조를 보존하는 단계는 아니다.
 
+## 기존 코드 재사용
 
-def extract_hwpx_text(file_path: str | Path) -> str:
-    """Extract plain text from HWPX section XML files in document order."""
-    source = inspect_document_source(file_path)
-    if source.format != "hwpx":
-        raise ValueError(f"Expected HWPX document, got: {source.format}")
+`apps/document-parser/src/document_parser/source.py`의 실제 검증 완료 API는
+`validate_source()`와 `DocumentSource`다. 초기 명세의 `inspect_document_source()`는
+저장소에 존재하지 않는 이름이어서, 실행 전 명세 정리에서 실제 API 이름으로 바로잡았다.
+이름을 맞추려고 기존 함수를 개명하거나 별도 wrapper를 만들지 않는다.
+`source.py`, `__init__.py`, `test_source.py`는 수정하지 않는다.
 
-    try:
-        with zipfile.ZipFile(source.path) as archive:
-            sections: list[tuple[int, str]] = []
+## 허용 변경 파일
 
-            for name in archive.namelist():
-                match = _SECTION_PATTERN.fullmatch(name)
-                if match is not None:
-                    sections.append((int(match.group(1)), name))
+- `apps/document-parser/src/document_parser/hwpx.py`
+- `apps/document-parser/tests/test_hwpx.py`
 
-            if not sections:
-                raise ValueError("HWPX document has no section XML files")
+이 명세, 요청 JSON, 기존 DOC-PARSER-0 코드, pyproject.toml, 잠금 파일,
+implementation/ 문서 또는 결과 MD/JSON은 Codex의 변경 대상이 아니다.
+실행 결과는 외부 W1 실행기가 JSON으로 기록하고, 검증 후 별도 결과 MD에 정리한다.
 
-            section_texts: list[str] = []
+## 공개 함수와 처리 순서
 
-            for _, section_name in sorted(sections):
-                try:
-                    root = ET.fromstring(archive.read(section_name))
-                except ET.ParseError as exc:
-                    raise ValueError(
-                        f"Invalid HWPX section XML: {section_name}"
-                    ) from exc
+`document_parser.hwpx.extract_hwpx_text(file_path: str | Path) -> str`
 
-                text_parts = [
-                    "".join(element.itertext())
-                    for element in root.iter()
-                    if element.tag.rsplit("}", 1)[-1] == "t"
-                ]
-                section_texts.append("".join(text_parts))
+1. 기존 `validate_source(file_path)`를 호출하여 파일 존재·형식 검사를 재사용한다.
+2. 반환된 `DocumentSource.format`이 `hwpx`가 아니면 `ValueError`로 거부한다.
+3. 표준 라이브러리 `zipfile.ZipFile`로 원본을 읽기 전용으로 연다.
+4. ZIP 멤버 중 `^Contents/section(\d+)\.xml$`에 정확히 일치하는 이름만 선택한다.
+5. 구역 번호를 정수로 정렬한다. 예: section0 → section2 → section10.
+6. 각 구역 XML을 `xml.etree.ElementTree`로 읽는다.
+7. namespace prefix에 의존하지 않고 local-name이 `t`인 요소의 텍스트를 문서 순서대로 추출한다.
+   각 `t`는 `"".join(element.itertext())`에 해당하는 내용을 사용한다.
+8. 같은 구역의 텍스트는 구분자 없이 연결하고, 구역 사이에만 `\n` 하나를 넣는다.
+   공백을 임의로 strip하거나 정규화하지 않는다. 텍스트가 없는 구역은 빈 문자열이다.
+9. 최종 문자열을 반환한다. 압축을 디스크에 풀거나 원본을 수정하지 않는다.
 
-    except zipfile.BadZipFile as exc:
-        raise ValueError("Invalid HWPX ZIP container") from exc
+함수·상수는 현재 최소 기능에 필요한 것만 추가한다. 새 런타임 의존성은 추가하지 않는다.
 
-    return "\n".join(section_texts)
-apps/document-parser/tests/test_hwpx.py
-from pathlib import Path
-import zipfile
+## 오류 계약
 
-import pytest
+- 파일 누락·경로 타입·접근 오류: 기존 `validate_source()`의 예외를 그대로 전달.
+- 기존 검사에 통과한 비-HWPX 입력: `ValueError`, 메시지에 `Expected HWPX` 포함.
+- 잘못된 ZIP 컨테이너: `ValueError`, 메시지에 `Invalid HWPX ZIP` 포함, 원인 예외 연결.
+- section XML 부재: `ValueError`, 메시지에 `no section XML` 포함.
+- 잘못된 section XML: `ValueError`, 메시지에 `Invalid HWPX section XML`과 멤버 이름 포함, 원인 예외 연결.
 
-from document_parser.hwpx import extract_hwpx_text
+## 필수 검증
 
-HP_NAMESPACE = "http://www.hancom.co.kr/hwpml/2011/paragraph"
+- DOC-PARSER-0 회귀 검사 통과.
+- 한 구역의 여러 `t` 연결과 한글·공백 보존.
+- ZIP 저장 순서에 관계없는 숫자 순 정렬. section2/section10 경계 포함.
+- namespace prefix에 의존하지 않는 텍스트 추출.
+- PDF 등 지원되는 비-HWPX 입력 거부, 누락 파일 예외 전달.
+- 잘못된 ZIP, section 부재, 잘못된 XML 거부.
+- 원본 HWPX가 변경되지 않음.
+- Ruff와 Black 통과. 허용 외 변경 없음.
 
+테스트에는 직접 만든 범용 ZIP/XML fixture만 사용한다. 기관 내부 문서는 사용하지 않는다.
+테스트 개수나 성공 여부는 미리 확정하지 않고 실제 결과에 기록한다.
 
-def _write_hwpx(path: Path, sections: dict[int, str]) -> None:
-    with zipfile.ZipFile(path, "w") as archive:
-        for index, body in sections.items():
-            archive.writestr(
-                f"Contents/section{index}.xml",
-                f'<hp:sec xmlns:hp="{HP_NAMESPACE}">{body}</hp:sec>',
-            )
+```powershell
+uv run --project apps/document-parser pytest apps/document-parser/tests/test_source.py apps/document-parser/tests/test_hwpx.py
+uv run --project apps/document-parser ruff check apps/document-parser/src/document_parser apps/document-parser/tests
+uv run --project apps/document-parser black --check apps/document-parser/src/document_parser apps/document-parser/tests
+```
 
+## 실행 환경
 
-def test_extracts_text_from_multiple_runs(tmp_path: Path) -> None:
-    document_path = tmp_path / "sample.hwpx"
-    _write_hwpx(
-        document_path,
-        {
-            0: (
-                "<hp:p>"
-                "<hp:run><hp:t>한글</hp:t></hp:run>"
-                "<hp:run><hp:t>과</hp:t></hp:run>"
-                "<hp:run><hp:t>컴퓨터</hp:t></hp:run>"
-                "</hp:p>"
-            )
-        },
-    )
+저장소 루트에서 `projectPath: "."`인 요청을 실행한다.
+uv·Python·Codex CLI와 로그인 및 pytest/Ruff/Black이 준비되어 있어야 한다.
+이번 W1 검증은 기존 개발 환경을 `UV_PROJECT_ENVIRONMENT`로 선택하고 `UV_NO_SYNC=1`로
+잠금 파일 생성을 피한다. `PYTHONPATH`는 이 프로젝트의 src를 가리킨다.
+이 방식의 통과가 새 환경에서의 의존성 설치 검증을 뜻하지는 않는다.
 
-    assert extract_hwpx_text(document_path) == "한글과컴퓨터"
+```powershell
+uv run python tools/automation/run_codex_single_task.py `
+  --request tasks/pending/DOC-PARSER-1.json `
+  --result .mde/codex-development/DOC-PARSER-1-result.json
+```
 
+## 기록 분리
 
-def test_orders_sections_numerically(tmp_path: Path) -> None:
-    document_path = tmp_path / "sample.hwpx"
+- STEP MD: 이 파일. 무엇을 만들지 정의하고 실행 중 고정한다.
+- JSON: 실행 요청. allowedFiles는 위 Python 파일 두 개뿐이다.
+- RESULT JSON: `.mde/codex-development/DOC-PARSER-1-result.json`. W1이 기록하는 기계용 증거.
+- RESULT MD: `docs/15_projects/document-parser/results/DOC-PARSER-1-result.md`.
+  외부 검증 PASS 후 실제 JSON·Git 차이·코드를 확인하여 기록하며, 개발 전에 생성하지 않는다.
 
-    with zipfile.ZipFile(document_path, "w") as archive:
-        archive.writestr(
-            "Contents/section1.xml",
-            (
-                f'<hp:sec xmlns:hp="{HP_NAMESPACE}">'
-                "<hp:p><hp:run><hp:t>둘째</hp:t></hp:run></hp:p>"
-                "</hp:sec>"
-            ),
-        )
-        archive.writestr(
-            "Contents/section0.xml",
-            (
-                f'<hp:sec xmlns:hp="{HP_NAMESPACE}">'
-                "<hp:p><hp:run><hp:t>첫째</hp:t></hp:run></hp:p>"
-                "</hp:sec>"
-            ),
-        )
+자동 JSON→MD 생성과 Workflow/task_runner 연결은 후속 W2 범위다.
 
-    assert extract_hwpx_text(document_path) == "첫째\n둘째"
+## 이번 STEP에서 제외
 
+문단 경계 보존, 제목·주석 판정, 서식·header.xml 매핑, 표·이미지 파싱,
+HWP 바이너리·PDF·OCR, 공통 Core, 검색·색인, AI/RAG/Vector DB/API,
+새 프레임워크, 위임·멀티에이전트, 자동수정 반복, mde save, commit/push, 배포.
+공공기관 내부 코드·문서·경로·업무규칙과 실제 비밀키는 사용하지 않는다.
 
-def test_rejects_non_hwpx_input(tmp_path: Path) -> None:
-    document_path = tmp_path / "sample.pdf"
-    document_path.write_bytes(b"%PDF")
+## 다음 STEP
 
-    with pytest.raises(ValueError, match="Expected HWPX"):
-        extract_hwpx_text(document_path)
-
-
-def test_rejects_invalid_zip(tmp_path: Path) -> None:
-    document_path = tmp_path / "sample.hwpx"
-    document_path.write_text("not zip", encoding="utf-8")
-
-    with pytest.raises(ValueError, match="Invalid HWPX ZIP"):
-        extract_hwpx_text(document_path)
-
-
-def test_rejects_missing_section_xml(tmp_path: Path) -> None:
-    document_path = tmp_path / "sample.hwpx"
-
-    with zipfile.ZipFile(document_path, "w") as archive:
-        archive.writestr("mimetype", "application/hwp+zip")
-
-    with pytest.raises(ValueError, match="no section XML"):
-        extract_hwpx_text(document_path)
-
-
-def test_rejects_invalid_section_xml(tmp_path: Path) -> None:
-    document_path = tmp_path / "sample.hwpx"
-
-    with zipfile.ZipFile(document_path, "w") as archive:
-        archive.writestr("Contents/section0.xml", "<hp:sec>")
-
-    with pytest.raises(ValueError, match="Invalid HWPX section XML"):
-        extract_hwpx_text(document_path)
-5. 동작 기준
-.hwpx가 아니면 기존 inspect_document_source() 결과를 이용해 거부한다.
-HWPX ZIP의 Contents/sectionN.xml만 읽는다.
-section 번호를 숫자로 정렬한다.
-XML namespace prefix 자체에 의존하지 않고 local-name t를 추출한다.
-같은 section의 텍스트는 그대로 이어 붙인다.
-section 사이에만 \n 하나를 넣는다.
-원본 문서는 수정하지 않는다.
-6. 실행 및 검증
-uv run --project apps/document-parser pytest `
-  apps/document-parser/tests/test_source.py `
-  apps/document-parser/tests/test_hwpx.py
-
-uv run --project apps/document-parser ruff check `
-  apps/document-parser/src/document_parser `
-  apps/document-parser/tests
-
-uv run --project apps/document-parser black --check `
-  apps/document-parser/src/document_parser `
-  apps/document-parser/tests
-이 답변에서 제시한 신규 hwpx.py + test_hwpx.py 최소 코드는 격리 테스트에서 6 passed를 확인했다.
-최종 검증 완료 판정은 실제 MDE/Codex Windows 저장소에서 위 검증 Gate가 PASS한 뒤 한다.
-7. 성공 기준
-DOC-PARSER-0 회귀 테스트 PASS
-한 section의 여러 <hp:t> 텍스트 연결 성공
-section0 → section1 숫자 순서 유지
-PDF 등 비-HWPX 입력 거부
-잘못된 ZIP 거부
-section XML 없는 HWPX 거부
-잘못된 XML 거부
-Ruff PASS
-Black PASS
-disallowedFiles 0건
-8. 보안 확인
-읽기 전용 처리
-원본 문서 수정 없음
-외부 전송 없음
-기관 내부 문서 사용 금지
-테스트는 합법적으로 외부 사용 가능한 자료만 사용
-비밀키/API Key 없음
-9. 이번 단계에서 하지 않는 것
-문단 경계 보존
-제목/본문/주석 구조 판정
-Bold/FontSize/Indent 분석
-header.xml 서식 매핑
-표 Parser
-이미지 Parser
-HWP 바이너리 Parser
-PDF Parser
-OCR
-NormalizedDocument 공통 Core
-검색/색인
-AI/RAG/Vector DB
-신규 오케스트레이션 Framework
-10. MDE-CODEX-W1 작업 JSON
-{
-  "taskId": "DOC-PARSER-001",
-  "stepId": "DOC-PARSER-1",
-  "projectPath": ".",
-  "requirement": "DOC-PARSER-0 검증 완료 코드를 재작성하지 않고 그대로 재사용하여 HWPX 최소 텍스트 추출을 구현한다. 기존 apps/document-parser/src/document_parser/source.py의 inspect_document_source()를 반드시 재사용하고 source.py와 __init__.py는 수정하지 않는다. Python 표준 라이브러리 zipfile과 xml.etree.ElementTree만 사용한다. HWPX ZIP 내부의 Contents/sectionN.xml 파일을 N의 숫자 순서대로 읽고, 각 section XML에서 local-name이 t인 텍스트 요소의 내용을 문서 순서대로 이어 붙인다. 같은 section 안에서는 텍스트를 그대로 연결하고 section 사이에만 줄바꿈 1개를 넣어 문자열로 반환한다. 잘못된 HWPX ZIP, section XML 부재, 잘못된 section XML은 명확한 ValueError로 처리한다. 이번 STEP에서는 문단 분리, 서식, 표, 이미지, header.xml 스타일 매핑, OCR, HWP 바이너리 파싱, PDF 파싱, AI/RAG/Vector DB/API/새 Framework를 구현하지 않는다. 기관 내부 코드·문서·경로·업무규칙을 사용하지 않는다. 작업 전에 AGENTS.md와 저장소의 최신 거버넌스/개발지침을 확인하고, 허용 파일 밖은 수정하지 않는다.",
-  "allowedFiles": [
-    "apps/document-parser/src/document_parser/hwpx.py",
-    "apps/document-parser/tests/test_hwpx.py",
-    "docs/15_projects/document-parser/implementation/DOC-PARSER-1.md"
-  ],
-  "validationCommands": [
-    [
-      "uv",
-      "run",
-      "--project",
-      "apps/document-parser",
-      "pytest",
-      "apps/document-parser/tests/test_source.py",
-      "apps/document-parser/tests/test_hwpx.py"
-    ],
-    [
-      "uv",
-      "run",
-      "--project",
-      "apps/document-parser",
-      "ruff",
-      "check",
-      "apps/document-parser/src/document_parser",
-      "apps/document-parser/tests"
-    ],
-    [
-      "uv",
-      "run",
-      "--project",
-      "apps/document-parser",
-      "black",
-      "--check",
-      "apps/document-parser/src/document_parser",
-      "apps/document-parser/tests"
-    ]
-  ],
-  "timeoutSeconds": 1800
-}
-11. 다음 STEP
-DOC-PARSER-2 — HWPX 문단 분리
-검증 완료된 extract_hwpx_text()를 재작성하지 않고, HWPX의 <hp:p> 단위를 별도 구조로 추출하는 최소 기능을 추가한다.
+DOC-PARSER-2 — HWPX 문단 분리.
+검증된 최소 추출 함수를 재작성하지 않고 `hp:p` 단위를 다루는 별도 최소 기능을 검토한다.
+이번 실행에서는 시작하지 않는다.

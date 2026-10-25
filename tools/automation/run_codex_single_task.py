@@ -81,9 +81,11 @@ def _load_task(path: Path) -> DevelopmentTask:
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,79}", data[field]):
             raise CodexDevelopmentError(f"{field} must be a safe identifier")
     project_path = Path(data["projectPath"]).expanduser()
+    if project_path == Path("."):
+        project_path = Path.cwd()
     if not project_path.is_absolute() or not project_path.is_dir():
         raise CodexDevelopmentError(
-            "projectPath must be an existing absolute directory"
+            "projectPath must be '.' or an existing absolute directory"
         )
     project_path = project_path.resolve()
     raw_allowed = data.get("allowedFiles")

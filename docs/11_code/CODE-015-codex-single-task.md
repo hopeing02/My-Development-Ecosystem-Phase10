@@ -51,6 +51,10 @@ psutil은 이미 잠긴 런타임 의존성으로 새 SDK·Framework·의존성�
 기존 MDE 의존성 환경에서 실행한다. 설치 후 직접 스크립트 실행 또는 모듈 실행 모두 가능하다.
 JSON의 projectPath와 실제 요구사항·허용 파일·검증 명령은 대상 프로젝트에 맞게 바꾼다.
 검증 명령은 shell 문장이 아닌 argv 배열이며 작업 폴더는 projectPath다.
+2026-10-25 호환 보완: `projectPath`는 기존 절대 경로 외에 `"."`도 지원한다.
+`"."`은 요청 JSON 파일의 폴더가 아닌 실행 명령의 현재 작업 폴더를 뜻하므로 저장소 루트에서 실행한다.
+그 외 상대 경로는 계속 거부한다. 이 변경은 DOC-PARSER-1의 이식 가능한 요청 실행에 필요한
+입력 해석 보완이며 Codex CLI 연결부와 Workflow/task_runner는 변경하지 않는다.
 Windows에서 uv가 PATH에 없다면 각 명령 첫 항목에 uv.exe 절대 경로를 지정한다.
 별도 Python 환경이면 해당 python.exe와 `-m pytest`, `-m ruff`, `-m black`도 사용할 수 있다.
 

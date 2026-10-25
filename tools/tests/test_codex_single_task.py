@@ -137,6 +137,21 @@ def test_success_runs_real_validation(tmp_path, project, monkeypatch):
     assert result["validationResults"][0]["success"]
 
 
+def test_dot_project_runs_from_current_repository(tmp_path, project, monkeypatch):
+    fake_codex(monkeypatch, project)
+    request = request_file(tmp_path, project, projectPath=".")
+    monkeypatch.chdir(project)
+    code, result = read_result(tmp_path, request)
+    assert code == 0 and result["success"]
+    assert result["changedFiles"] == ["example.py"]
+
+
+def test_other_relative_project_path_is_rejected(tmp_path, project):
+    request = request_file(tmp_path, project, projectPath="../project")
+    with pytest.raises(runner.CodexDevelopmentError, match="absolute directory"):
+        runner._load_task(request)
+
+
 def test_outside_changes_fail_before_validation(tmp_path, project, monkeypatch):
     fake_codex(monkeypatch, project, paths={"outside.py": "bad"})
     code, result = read_result(tmp_path, request_file(tmp_path, project))

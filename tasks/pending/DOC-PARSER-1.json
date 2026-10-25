@@ -2,7 +2,7 @@
   "taskId": "DOC-PARSER-001",
   "stepId": "DOC-PARSER-1",
   "projectPath": ".",
-  "requirement": "docs/15_projects/document-parser/steps/DOC-PARSER-1.md를 먼저 읽고 해당 STEP 명세만 구현한다. DOC-PARSER-0 검증 완료 코드는 재작성하지 않는다.DOC-PARSER-0 검증 완료 코드를 재작성하지 않고 그대로 재사용하여 HWPX 최소 텍스트 추출을 구현한다. 기존 apps/document-parser/src/document_parser/source.py의 inspect_document_source()를 반드시 재사용하고 source.py와 __init__.py는 수정하지 않는다. Python 표준 라이브러리 zipfile과 xml.etree.ElementTree만 사용한다. HWPX ZIP 내부의 Contents/sectionN.xml 파일을 N의 숫자 순서대로 읽고, 각 section XML에서 local-name이 t인 텍스트 요소의 내용을 문서 순서대로 이어 붙인다. 같은 section 안에서는 텍스트를 그대로 연결하고 section 사이에만 줄바꿈 1개를 넣어 문자열로 반환한다. 잘못된 HWPX ZIP, section XML 부재, 잘못된 section XML은 명확한 ValueError로 처리한다. 이번 STEP에서는 문단 분리, 서식, 표, 이미지, header.xml 스타일 매핑, OCR, HWP 바이너리 파싱, PDF 파싱, AI/RAG/Vector DB/API/새 Framework를 구현하지 않는다. 기관 내부 코드·문서·경로·업무규칙을 사용하지 않는다. 작업 전에 AGENTS.md와 저장소의 최신 거버넌스/개발지침을 확인하고, 허용 파일 밖은 수정하지 않는다.",
+  "requirement": "docs/15_projects/document-parser/steps/DOC-PARSER-1.md를 먼저 읽고 해당 STEP 명세만 구현한다. DOC-PARSER-0의 실제 검증 완료 함수 validate_source()와 DocumentSource를 그대로 재사용한다. source.py, __init__.py, test_source.py 및 STEP 명세와 요청 JSON은 수정하지 않는다. allowedFiles의 hwpx.py와 test_hwpx.py만 생성한다. 개발결과 MD와 JSON은 외부 실행·검증 뒤 별도로 기록하므로 Codex는 생성하지 않는다. 신규 프레임워크·의존성·문단 분리·자동수정 반복·위임·commit/push/save/배포는 수행하지 않는다.",
   "allowedFiles": [
     "apps/document-parser/src/document_parser/hwpx.py",
     "apps/document-parser/tests/test_hwpx.py"

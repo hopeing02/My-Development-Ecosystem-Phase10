@@ -60,3 +60,18 @@ pyproject 및 lock 파일의 Git diff는 없다. 검증 단계에서는 생산 �
 CODE-015의 명령을 따른다. 이번 PC에서는 기본 `.venv`에 dev 도구가 없어 이전 STEP의
 `work/mde-audit-root-env`를 UV_PROJECT_ENVIRONMENT로 지정하여 frozen uv 명령을 사용한다.
 실 CLI acceptance 결과와 요청·출력은 이번 작업의 검토 산출물에 보관한다.
+
+## 2026-10-25 DOC-PARSER-1 입력 호환 보완
+
+실제 요청의 `projectPath: "."`을 지원하도록 현재 작업 폴더를 선택하는 처리만 추가했다.
+절대 경로는 기존대로 동작하며 다른 상대 경로는 계속 거부한다.
+현재 저장소에서 실제 validation을 실행하는 dot 경로 통합 검사와 다른 상대 경로 거부 검사를 추가했다.
+Codex CLI 연결·허용 파일 검사·Workflow/task_runner·JSON 결과 형식은 변경하지 않았다.
+
+- 전체 루트: **320 passed, 1 skipped**, 50.43초. Windows symlink 권한 skip 유지.
+- DOC-PARSER-0: **24 passed**, 0.04초.
+- 전체 Ruff·Black(244 files unchanged), 두 docs check, diff check: PASS.
+- 검증 환경: 기존 Python 3.12 검증 환경. 새 환경 설치 검증은 아니다.
+
+STEP 명세를 실행 중 고정하고 결과 MD를 PASS 후 분리 기록하는 DOC-PARSER-1 준비 작업이다.
+결과 MD 자동 생성과 Workflow/task_runner 연결은 W2로 남긴다.
