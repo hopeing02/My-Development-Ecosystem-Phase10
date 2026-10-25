@@ -2,7 +2,7 @@
   "taskId": "DOC-PARSER-001",
   "stepId": "DOC-PARSER-1",
   "projectPath": ".",
-  "requirement": "docs/15_projects/document-parser/steps/DOC-PARSER-1.md를 먼저 읽고 해당 STEP 명세만 구현한다. DOC-PARSER-0의 실제 검증 완료 함수 validate_source()와 DocumentSource를 그대로 재사용한다. source.py, __init__.py, test_source.py 및 STEP 명세와 요청 JSON은 수정하지 않는다. allowedFiles의 hwpx.py와 test_hwpx.py만 생성한다. 개발결과 MD와 JSON은 외부 실행·검증 뒤 별도로 기록하므로 Codex는 생성하지 않는다. 신규 프레임워크·의존성·문단 분리·자동수정 반복·위임·commit/push/save/배포는 수행하지 않는다.",
+  "requirement": "docs/15_projects/document-parser/steps/DOC-PARSER-1.md의 개정된 명세를 먼저 읽고 해당 STEP만 구현한다. DOC-PARSER-0의 공개 API inspect_document_source(file_path)와 DocumentSource를 반드시 재사용한다. hwpx.py가 validate_source를 직접 호출하거나 입력 검사를 다시 작성하지 않는다. source.py, __init__.py, test_source.py, test_public_api.py와 명세·요청 JSON은 수정하지 않는다. allowedFiles의 hwpx.py와 test_hwpx.py만 생성한다. HWPX가 inspect_document_source를 실제 호출하는 검사도 포함한다. 결과 MD/JSON은 외부 검증 후 별도 기록한다. 신규 프레임워크·의존성·문단 분리·자동수정 반복·위임·commit/push/save/배포는 수행하지 않는다.",
   "allowedFiles": [
     "apps/document-parser/src/document_parser/hwpx.py",
     "apps/document-parser/tests/test_hwpx.py"
@@ -15,6 +15,7 @@
       "apps/document-parser",
       "pytest",
       "apps/document-parser/tests/test_source.py",
+      "apps/document-parser/tests/test_public_api.py",
       "apps/document-parser/tests/test_hwpx.py"
     ],
     [
