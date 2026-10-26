@@ -12,11 +12,16 @@ ZIP/XML 기반 HWPX에서 구역별 본문 텍스트만 최소 추출하여 `str
 
 ## 기존 코드 재사용
 
-`apps/document-parser/src/document_parser/source.py`의 실제 검증 완료 API는
-`validate_source()`와 `DocumentSource`다. 초기 명세의 `inspect_document_source()`는
-저장소에 존재하지 않는 이름이어서, 실행 전 명세 정리에서 실제 API 이름으로 바로잡았다.
-이름을 맞추려고 기존 함수를 개명하거나 별도 wrapper를 만들지 않는다.
-`source.py`, `__init__.py`, `test_source.py`는 수정하지 않는다.
+원문 STEP의 공개 API `inspect_document_source(file_path: str | Path)`를 재사용한다.
+이 함수는 원문의 `file_path=` 키워드와 `~` 확장을 지원하며, 기존 검증 함수
+`validate_source()`와 `DocumentSource`에 검사를 위임하는 최소 호환 함수다.
+검증 완료된 `validate_source()`의 본문은 그대로 보존한다.
+기존 `validate_source(path=...)` 호출도 계속 지원한다. 두 공개 이름을 패키지에서 제공한다.
+
+이 명세는 이전 validate_source 직접 호출 명세의 실행 완료 후 사용자 요청에 따라 개정했다.
+이전 명세·요청·코드·44 passed 결과는 ignored 실행 아카이브와 Git 이력에 보존한다.
+개정된 명세를 다시 고정한 뒤 새 W1 실행으로 검증하며 이전 PASS를 새 명세의 결과로 쓰지 않는다.
+source.py, __init__.py, test_source.py, test_public_api.py는 새 실행 중 수정하지 않는다.
 
 ## 허용 변경 파일
 
@@ -31,7 +36,8 @@ implementation/ 문서 또는 결과 MD/JSON은 Codex의 변경 대상이 아니
 
 `document_parser.hwpx.extract_hwpx_text(file_path: str | Path) -> str`
 
-1. 기존 `validate_source(file_path)`를 호출하여 파일 존재·형식 검사를 재사용한다.
+1. 공개 `inspect_document_source(file_path)`를 호출하여 파일 존재·형식 검사를 재사용한다.
+   hwpx.py가 validate_source를 직접 호출하거나 입력 검사를 다시 구현하지 않는다.
 2. 반환된 `DocumentSource.format`이 `hwpx`가 아니면 `ValueError`로 거부한다.
 3. 표준 라이브러리 `zipfile.ZipFile`로 원본을 읽기 전용으로 연다.
 4. ZIP 멤버 중 `^Contents/section(\d+)\.xml$`에 정확히 일치하는 이름만 선택한다.
@@ -47,7 +53,7 @@ implementation/ 문서 또는 결과 MD/JSON은 Codex의 변경 대상이 아니
 
 ## 오류 계약
 
-- 파일 누락·경로 타입·접근 오류: 기존 `validate_source()`의 예외를 그대로 전달.
+- 파일 누락·경로 타입·접근 오류: 공개 입력 API가 위임한 기존 검사의 예외를 그대로 전달.
 - 기존 검사에 통과한 비-HWPX 입력: `ValueError`, 메시지에 `Expected HWPX` 포함.
 - 잘못된 ZIP 컨테이너: `ValueError`, 메시지에 `Invalid HWPX ZIP` 포함, 원인 예외 연결.
 - section XML 부재: `ValueError`, 메시지에 `no section XML` 포함.
@@ -55,7 +61,8 @@ implementation/ 문서 또는 결과 MD/JSON은 Codex의 변경 대상이 아니
 
 ## 필수 검증
 
-- DOC-PARSER-0 회귀 검사 통과.
+- DOC-PARSER-0 회귀 검사와 두 공개 API의 키워드·경로 호환 검사 통과.
+- HWPX 추출이 inspect_document_source를 실제 호출함을 검사.
 - 한 구역의 여러 `t` 연결과 한글·공백 보존.
 - ZIP 저장 순서에 관계없는 숫자 순 정렬. section2/section10 경계 포함.
 - namespace prefix에 의존하지 않는 텍스트 추출.
@@ -68,7 +75,7 @@ implementation/ 문서 또는 결과 MD/JSON은 Codex의 변경 대상이 아니
 테스트 개수나 성공 여부는 미리 확정하지 않고 실제 결과에 기록한다.
 
 ```powershell
-uv run --project apps/document-parser pytest apps/document-parser/tests/test_source.py apps/document-parser/tests/test_hwpx.py
+uv run --project apps/document-parser pytest apps/document-parser/tests/test_source.py apps/document-parser/tests/test_public_api.py apps/document-parser/tests/test_hwpx.py
 uv run --project apps/document-parser ruff check apps/document-parser/src/document_parser apps/document-parser/tests
 uv run --project apps/document-parser black --check apps/document-parser/src/document_parser apps/document-parser/tests
 ```

@@ -39,3 +39,8 @@ def validate_source(path: str | PathLike[str]) -> DocumentSource:
     if document_format is None:
         raise ValueError("Supported source extensions are .hwp, .hwpx and .pdf")
     return DocumentSource(path=source_path, format=document_format)
+
+
+def inspect_document_source(file_path: str | Path) -> DocumentSource:
+    """Expose the original STEP API while reusing verified source validation."""
+    return validate_source(Path(file_path).expanduser())
