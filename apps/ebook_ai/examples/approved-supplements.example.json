@@ -1,0 +1,8 @@
+{
+  "supplements": [
+    {
+      "step": "chapter-001",
+      "path": "supplements/STEP_01_explanation.md"
+    }
+  ]
+}

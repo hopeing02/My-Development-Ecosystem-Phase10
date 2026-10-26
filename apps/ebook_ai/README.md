@@ -49,3 +49,65 @@ CLI 실행 방식은 [OpenAI 공식 문서](https://learn.chatgpt.com/docs/non-i
 가상 원고로 생성한 두 파일을 열어 목차 이동·한글·장 순서·본문을 확인하세요.
 
 상세 계약과 검사 기록: [EBOOK-AI-01](../../docs/15_projects/ebook_ai/implementation/EBOOK-AI-01.md).
+
+## STEP 02 — 승인된 해설로 확장판 생성
+
+같은 명령에 `--supplements`를 지정하면 `expanded.md`를 추가합니다.
+기존 원고 목록과 기존 명령의 동작은 그대로 유지합니다.
+
+```powershell
+uv run --locked python apps/ebook_ai/ebook_builder.py --manifest apps/ebook_ai/examples/manifest.json --output-dir apps/ebook_ai/output/expanded-demo --supplements apps/ebook_ai/examples/approved-supplements.example.json
+```
+
+uv가 PATH에 없으면 위 `uv run --locked python` 대신 저장소의
+`.\.venv\Scripts\python.exe`를 사용할 수 있습니다.
+
+보충 목록은 원고 목록과 별개 JSON입니다.
+
+```json
+{
+  "supplements": [
+    {"step": "chapter-001", "path": "supplements/STEP_01_explanation.md"}
+  ]
+}
+```
+
+현재 STEP 01에는 별도 STEP ID 필드가 없습니다. `step`은 **기본판의 실제 장 앵커**를
+사용합니다. `chapter-001`은 첫 장, `chapter-002`는 두 번째 장입니다.
+첨부 예시의 `STEP-01`은 현재 목록에 존재하는 ID가 아니므로 사용하지 않습니다.
+원고 순서를 바꾸면 장 앵커도 달라지므로 보충 목록의 연결 대상을 다시 확인하세요.
+
+`path`는 **기존 원고 목록 JSON이 있는 폴더**를 기준으로 합니다.
+보충 JSON의 위치나 현재 작업 폴더를 기준으로 하지 않습니다.
+절대경로·상위경로(`..`)·루트 밖 링크·중복 장/파일·없는 장·빈 원고·잘못된 UTF-8을 거부합니다.
+장 뒤에 `### 추가 해설`을 붙이고 승인된 보충 본문을 넣습니다. 표·코드·한글은
+BOM 제거와 개행 LF 통일 외에는 보존합니다. 해설이 없는 장에는 이 제목을 넣지 않습니다.
+예제 보충 원고는 사용자가 제공한 STEP 02 ZIP의 공개 가상 원고를 그대로 사용합니다.
+
+기존 `toc.md`·`basic.md`가 있으면 예상 STEP 01 출력과 바이트를 비교하고
+**파일을 다시 쓰지 않습니다**. 내용이 다르면 `--overwrite`를 붙여도 오류로 중단합니다.
+두 파일이 없으면 기존 렌더링으로 생성합니다.
+확장 모드의 `--overwrite`는 **기존 expanded.md 교체에만** 적용됩니다.
+검증 오류 시 세 결과물을 모두 보존합니다. 확장판은 같은 폴더의 임시 파일에
+완성한 뒤 게시하며, 기본 저장은 기존 파일을 보호하고 덮어쓰기는 원자적으로 교체합니다.
+하드링크를 지원하는 로컬 파일시스템이 필요합니다. 모든 결과 파일을 한꺼번에
+보장하는 트랜잭션은 아니므로 첫 생성의 I/O 오류에서는 기본판 일부가 남을 수 있습니다.
+입력·출력 폴더를 다른 작업에서 동시에 수정하는 상황은 지원하지 않습니다.
+
+공개 Python API는 `build_ebook(manifest_path, output_dir, *, overwrite=False,
+supplements_path=None)`입니다. 반환형 `BuildResult`는 STEP 01 그대로이며
+확장판 경로는 `output_dir/expanded.md`입니다.
+`--supplements`가 없으면 기존 expanded.md도 생성·수정·삭제하지 않습니다.
+
+검사는 실행 파일 대신 Python 모듈로도 실행할 수 있습니다.
+
+```powershell
+uv run --locked python -m pytest apps/ebook_ai/tests -q
+uv run --locked python -m ruff check apps/ebook_ai
+uv run --locked python -m black --check --workers 1 apps/ebook_ai
+git diff --check
+```
+
+확장판을 읽고 장별 해설 위치와 기본판 보존을 확인하기 전까지 STEP 02는
+**사용자 실사용 검증 대기**입니다. AI 집필·PDF/EPUB·MDE 핵심 변경은 포함하지 않습니다.
+상세 설계와 검증 기록: [EBOOK-AI-02](../../docs/15_projects/ebook_ai/implementation/EBOOK-AI-02.md).
