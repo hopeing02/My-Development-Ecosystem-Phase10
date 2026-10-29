@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+- Added MDE-D1 existing-app daily plan CLI with one plan per date, preserved development logs, input validation and concurrent registration protection.
+
 - Added MDE-CODEX-W1 independent single-task Codex runner with path checks, validation results and failure JSON; existing Provider and Workflow policies are preserved.
 
 - 기존 Codex CLI Provider와 명시적 코드 문맥·실제 실패 로그 전달을 추가했다.
