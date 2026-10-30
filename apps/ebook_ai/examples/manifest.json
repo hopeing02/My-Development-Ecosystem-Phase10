@@ -1,0 +1,7 @@
+{
+  "title": "가상 원고로 만드는 작은 전자책",
+  "chapters": [
+    {"title": "첫 번째 기록", "path": "manuscripts/01_intro.md"},
+    {"title": "다음 실험", "path": "manuscripts/02_next.md"}
+  ]
+}
