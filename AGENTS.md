@@ -3,6 +3,7 @@
 모든 실제 코드 구현은 아래 공식 지침을 따른다.
 
 - docs/04\_development/DEV-001-development-standard.md
+- docs/development-guidelines
 
 핵심 원칙:
 
