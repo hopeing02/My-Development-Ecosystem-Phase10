@@ -9,11 +9,10 @@ from document_parser import inspect_document_source
 
 
 def extract_hwpx_paragraphs(file_path: str | Path) -> list[str]:
-    """Return paragraphs from numerically ordered sections, preserving whitespace.
+    """Return paragraphs with each text node owned by its nearest paragraph.
 
-    Source validation errors propagate unchanged. Invalid ZIP or section XML,
-    missing sections and supported non-HWPX sources raise ValueError.
-    Empty paragraphs are retained; sections without paragraphs contribute nothing.
+    Keep document-order paragraph elements and original text whitespace. Nested
+    paragraphs do not donate their text to any enclosing paragraph.
     """
     source = inspect_document_source(file_path)
     if source.format != "hwpx":
@@ -30,7 +29,7 @@ def extract_hwpx_paragraphs(file_path: str | Path) -> list[str]:
             if not sections:
                 raise ValueError("HWPX contains no section XML")
 
-            paragraphs = []
+            paragraphs: list[str] = []
             for _, member in sections:
                 try:
                     root = ElementTree.fromstring(archive.read(member))
@@ -38,15 +37,21 @@ def extract_hwpx_paragraphs(file_path: str | Path) -> list[str]:
                     raise ValueError(
                         f"Invalid HWPX section XML: {member.filename}"
                     ) from error
-                for paragraph in root.iter():
-                    if paragraph.tag.rsplit("}", 1)[-1] == "p":
-                        paragraphs.append(
-                            "".join(
-                                "".join(element.itertext())
-                                for element in paragraph.iter()
-                                if element.tag.rsplit("}", 1)[-1] == "t"
-                            )
-                        )
+
+                parts: list[list[str]] = []
+                stack: list[tuple[ElementTree.Element, int | None]] = [(root, None)]
+                while stack:
+                    element, owner = stack.pop()
+                    name = element.tag.rsplit("}", 1)[-1]
+                    if name == "p":
+                        owner = len(parts)
+                        parts.append([])
+                    if name == "t":
+                        if owner is not None:
+                            parts[owner].append("".join(element.itertext()))
+                        continue
+                    stack.extend((child, owner) for child in reversed(element))
+                paragraphs.extend("".join(content) for content in parts)
             return paragraphs
     except BadZipFile as error:
         raise ValueError("Invalid HWPX ZIP") from error
